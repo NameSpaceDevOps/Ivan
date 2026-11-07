@@ -1,0 +1,230 @@
+@page "/places"
+@rendermode InteractiveServer
+@inject IPropertyService PropertyService
+@inject IHomeInfoService HomeInfoService
+@inject ICalendarService CalendarService
+@inject UserPreferencesState Preferences
+
+<PageTitle>@(Preferences.IsRtl ? "مکان‌ها و اطلاعات خانه — ایوان" : "Places & Home Info — Ivan")</PageTitle>
+
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="mb-1">@(Preferences.IsRtl ? "اطلاعات ملک و کنتورها" : "Properties & Home Info")</h4>
+            <p class="text-secondary small mb-0">@(Preferences.IsRtl ? "مدیریت قبوض، کنتورخوانی و مخاطبین اضطراری ساختمان" : "Utilities, meter readings and building emergency contacts")</p>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            <!-- Properties & Spaces Column -->
+            <div class="col-12 col-md-4">
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white border-bottom fw-bold py-3">
+                        🏡 @(Preferences.IsRtl ? "املاک و فضاهای خانه" : "Properties & Spaces")
+                    </div>
+                    <div class="list-group list-group-flush">
+                        @foreach (var p in properties)
+                        {
+                            <button type="button"
+                                    class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 @(selectedProperty?.Id == p.Id ? "active" : "")"
+                                    @onclick="() => SelectProperty(p)">
+                                <div>
+                                    <div class="fw-bold">@p.Name</div>
+                                    <small class="@(selectedProperty?.Id == p.Id ? "text-light" : "text-muted")">@p.Type • @p.Spaces.Count @(Preferences.IsRtl ? "فضا" : "spaces")</small>
+                                </div>
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <!-- Emergency & Service Contacts -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-bottom fw-bold py-3 d-flex justify-content-between align-items-center">
+                        <span>📞 @(Preferences.IsRtl ? "مخاطبین و خدمات" : "Contacts & Services")</span>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="AddSampleContact">+</button>
+                    </div>
+                    <div class="list-group list-group-flush">
+                        @if (!contacts.Any())
+                        {
+                            <div class="text-center py-3 text-muted small">@(Preferences.IsRtl ? "مخاطبی ثبت نشده است" : "No contacts")</div>
+                        }
+                        @foreach (var c in contacts)
+                        {
+                            <div class="list-group-item py-2">
+                                <div class="fw-bold">@c.Name <span class="badge bg-light text-dark">@c.Category</span></div>
+                                <div class="text-primary small">@c.Phones</div>
+                                @if (c.Notes != null)
+                                {
+                                    <small class="text-muted">@c.Notes</small>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Utilities & Meter Readings Column -->
+            <div class="col-12 col-md-8">
+                @if (selectedProperty == null)
+                {
+                    <div class="card border-0 shadow-sm text-center py-5">
+                        <span style="font-size: 2.5rem;">🏢</span>
+                        <h6 class="text-secondary mt-2">@(Preferences.IsRtl ? "یک ملک را انتخاب کنید" : "Select a property")</h6>
+                    </div>
+                }
+                else
+                {
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-0">@selectedProperty.Name</h5>
+                                <small class="text-muted">@selectedProperty.Address</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" @onclick="AddSampleUtility">
+                                + @(Preferences.IsRtl ? "افزودن قبض / کنتور" : "Add Utility")
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="fw-bold mb-3">⚡ @(Preferences.IsRtl ? "انشعابات و کنتورها" : "Utility Accounts & Meters")</h6>
+
+                            @if (!utilityAccounts.Any())
+                            {
+                                <p class="text-muted small">@(Preferences.IsRtl ? "هیچ انشعابی ثبت نشده است." : "No utility accounts recorded.")</p>
+                            }
+                            else
+                            {
+                                <div class="row g-3">
+                                    @foreach (var u in utilityAccounts)
+                                    {
+                                        <div class="col-12 col-sm-6">
+                                            <div class="card h-100 border">
+                                                <div class="card-body">
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <span class="badge bg-primary">@u.Kind</span>
+                                                        <small class="text-muted">@u.AccountRef</small>
+                                                    </div>
+                                                    <h6 class="card-title fw-bold">@u.Provider</h6>
+                                                    @if (u.LatestReadingValue.HasValue)
+                                                    {
+                                                        <div class="mt-2 p-2 bg-light rounded text-center">
+                                                            <small class="text-muted d-block">@(Preferences.IsRtl ? "آخرین کنتورخوانی" : "Latest Reading")</small>
+                                                            <div class="fs-5 fw-bold text-primary">@u.LatestReadingValue.Value.ToString("N1")</div>
+                                                            <small class="text-muted">
+                                                                @CalendarService.FormatDate(u.LatestReadingDate!.Value, "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                                            </small>
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <p class="text-muted small mt-2">@(Preferences.IsRtl ? "هنوز قرائتی ثبت نشده است" : "No readings yet")</p>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private List<Property> properties = new();
+    private Property? selectedProperty;
+    private List<UtilityAccountDto> utilityAccounts = new();
+    private List<ContactDto> contacts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var props = await PropertyService.GetPropertiesAsync();
+            properties = props.ToList();
+            contacts = await HomeInfoService.GetContactsAsync();
+            if (properties.Any() && selectedProperty == null)
+            {
+                await SelectProperty(properties.First());
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SelectProperty(Property property)
+    {
+        selectedProperty = property;
+        try
+        {
+            utilityAccounts = await HomeInfoService.GetUtilityAccountsAsync(property.Id);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+    }
+
+    private async Task AddSampleUtility()
+    {
+        if (selectedProperty == null) return;
+        try
+        {
+            await HomeInfoService.CreateUtilityAccountAsync(new CreateUtilityAccountRequest(
+                selectedProperty.Id,
+                UtilityKind.Electricity,
+                Preferences.IsRtl ? "شرکت توزیع برق" : "Power Grid Co.",
+                "REF-987654",
+                Preferences.IsRtl ? "کنتور دیجیتال سه فاز" : "Digital 3-phase meter"));
+
+            await SelectProperty(selectedProperty);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+    }
+
+    private async Task AddSampleContact()
+    {
+        try
+        {
+            await HomeInfoService.CreateContactAsync(new CreateContactRequest(
+                Preferences.IsRtl ? "تأسیسات و لوله‌کشی (آقای رضایی)" : "Emergency Plumber",
+                ContactCategory.Emergency,
+                "09121112233",
+                null,
+                Preferences.IsRtl ? "شبانه روزی" : "24/7",
+                selectedProperty?.Id));
+
+            contacts = await HomeInfoService.GetContactsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+    }
+}

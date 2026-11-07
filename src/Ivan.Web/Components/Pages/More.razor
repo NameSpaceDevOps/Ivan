@@ -1,0 +1,80 @@
+@page "/more"
+@rendermode InteractiveServer
+@inject UserPreferencesState Preferences
+
+<PageTitle>@(Preferences.IsRtl ? "بیشتر — ایوان" : "More Modules — Ivan")</PageTitle>
+
+<div class="container-fluid p-0">
+    <div class="mb-4">
+        <h4 class="mb-1">@(Preferences.IsRtl ? "بخش‌ها و امکانات ایوان" : "Ivan Modules & Features")</h4>
+        <p class="text-secondary small mb-0">@(Preferences.IsRtl ? "دسترسی سریع به همه ماژول‌های مدیریت خانه و خانواده" : "Quick access to all home & family management modules")</p>
+    </div>
+
+    <div class="row g-3">
+        <!-- People & Dossier -->
+        <div class="col-12 col-sm-6 col-md-4">
+            <a href="people" class="card h-100 text-decoration-none border-0 shadow-sm p-3 d-flex flex-row align-items-center gap-3">
+                <span style="font-size: 2.2rem;">👥</span>
+                <div>
+                    <h6 class="fw-bold text-dark mb-1">@(Preferences.IsRtl ? "افراد و پرونده‌ها" : "People & Dossiers")</h6>
+                    <small class="text-secondary">@(Preferences.IsRtl ? "سلامت، مدارک، آموزش، سالگردها" : "Health, documents, education, birthdays")</small>
+                </div>
+            </a>
+        </div>
+
+        <!-- Assets & Maintenance -->
+        <div class="col-12 col-sm-6 col-md-4">
+            <a href="assets" class="card h-100 text-decoration-none border-0 shadow-sm p-3 d-flex flex-row align-items-center gap-3">
+                <span style="font-size: 2.2rem;">📦</span>
+                <div>
+                    <h6 class="fw-bold text-dark mb-1">@(Preferences.IsRtl ? "اموال و نگهداری" : "Assets & Maintenance")</h6>
+                    <small class="text-secondary">@(Preferences.IsRtl ? "لوازم، گارانتی، سرویس دوره‌ای" : "Equipment, warranties, routine service")</small>
+                </div>
+            </a>
+        </div>
+
+        <!-- Places & Home Info -->
+        <div class="col-12 col-sm-6 col-md-4">
+            <a href="places" class="card h-100 text-decoration-none border-0 shadow-sm p-3 d-flex flex-row align-items-center gap-3">
+                <span style="font-size: 2.2rem;">🏡</span>
+                <div>
+                    <h6 class="fw-bold text-dark mb-1">@(Preferences.IsRtl ? "اطلاعات ملک و کنتورها" : "Places & Home Info")</h6>
+                    <small class="text-secondary">@(Preferences.IsRtl ? "قبوض، کنتورخوانی، مخاطبین ساختمان" : "Utilities, meter readings, building contacts")</small>
+                </div>
+            </a>
+        </div>
+
+        <!-- Calendar -->
+        <div class="col-12 col-sm-6 col-md-4">
+            <a href="calendar" class="card h-100 text-decoration-none border-0 shadow-sm p-3 d-flex flex-row align-items-center gap-3">
+                <span style="font-size: 2.2rem;">📅</span>
+                <div>
+                    <h6 class="fw-bold text-dark mb-1">@(Preferences.IsRtl ? "تقویم خانوادگی" : "Family Calendar")</h6>
+                    <small class="text-secondary">@(Preferences.IsRtl ? "نمای جامع رویدادها و سررسیدها" : "Unified view of tasks, events, dues")</small>
+                </div>
+            </a>
+        </div>
+
+        <!-- Tasks & Checklists -->
+        <div class="col-12 col-sm-6 col-md-4">
+            <a href="tasks" class="card h-100 text-decoration-none border-0 shadow-sm p-3 d-flex flex-row align-items-center gap-3">
+                <span style="font-size: 2.2rem;">✓</span>
+                <div>
+                    <h6 class="fw-bold text-dark mb-1">@(Preferences.IsRtl ? "وظایف و چک‌لیست‌ها" : "Tasks & Checklists")</h6>
+                    <small class="text-secondary">@(Preferences.IsRtl ? "کارها، یادآورها، تمپلیت‌های چک‌لیست" : "To-dos, reminders, checklist templates")</small>
+                </div>
+            </a>
+        </div>
+
+        <!-- Setup Wizard -->
+        <div class="col-12 col-sm-6 col-md-4">
+            <a href="setup" class="card h-100 text-decoration-none border-0 shadow-sm p-3 d-flex flex-row align-items-center gap-3">
+                <span style="font-size: 2.2rem;">⚙️</span>
+                <div>
+                    <h6 class="fw-bold text-dark mb-1">@(Preferences.IsRtl ? "راه‌اندازی اولیه" : "Setup Wizard")</h6>
+                    <small class="text-secondary">@(Preferences.IsRtl ? "پیکربندی خانواده و تنظیمات اولیه" : "Initial household configuration")</small>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>

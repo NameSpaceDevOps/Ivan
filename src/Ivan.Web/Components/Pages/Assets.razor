@@ -1,0 +1,279 @@
+@page "/assets"
+@rendermode InteractiveServer
+@inject IAssetService AssetService
+@inject IPropertyService PropertyService
+@inject ICalendarService CalendarService
+@inject UserPreferencesState Preferences
+
+<PageTitle>@(Preferences.IsRtl ? "اموال و نگهداری — ایوان" : "Assets & Maintenance — Ivan")</PageTitle>
+
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="mb-1">@(Preferences.IsRtl ? "اموال، تجهیزات و نگهداری" : "Assets & Maintenance")</h4>
+            <p class="text-secondary small mb-0">@(Preferences.IsRtl ? "لوازم خانه، گارانتی، سرویس‌های دوره‌ای و سوابق تعمیر" : "Home equipment, warranties, recurring maintenance and service history")</p>
+        </div>
+        <button class="btn btn-primary btn-sm d-flex align-items-center gap-1" @onclick="OpenAddAssetModal">
+            <span>+</span>
+            <span>@(Preferences.IsRtl ? "دارایی جدید" : "Add Asset")</span>
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            <!-- Left: Assets List -->
+            <div class="col-12 col-md-4">
+                <div class="card border-0 shadow-sm">
+                    <div class="list-group list-group-flush">
+                        @if (!assets.Any())
+                        {
+                            <div class="text-center py-4 text-muted">
+                                @(Preferences.IsRtl ? "هیچ دارایی ثبت نشده است" : "No assets found")
+                            </div>
+                        }
+                        @foreach (var a in assets)
+                        {
+                            <button type="button"
+                                    class="list-group-item list-group-item-action d-flex align-items-center justify-content-between py-3 @(selectedAsset?.Id == a.Id ? "active" : "")"
+                                    @onclick="() => SelectAsset(a)">
+                                <div>
+                                    <div class="fw-bold">@a.Name</div>
+                                    <small class="@(selectedAsset?.Id == a.Id ? "text-light" : "text-muted")">
+                                        @a.CategoryName @(a.Brand != null ? $"• {a.Brand}" : "")
+                                    </small>
+                                </div>
+                                @if (a.WarrantyEnd.HasValue)
+                                {
+                                    <span class="badge @(selectedAsset?.Id == a.Id ? "bg-light text-dark" : "bg-warning text-dark")">
+                                        🛡️ @(Preferences.IsRtl ? "گارانتی" : "Warranty")
+                                    </span>
+                                }
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Asset Details, Maintenance & Service Records -->
+            <div class="col-12 col-md-8">
+                @if (selectedAsset == null)
+                {
+                    <div class="card border-0 shadow-sm text-center py-5">
+                        <span style="font-size: 2.5rem;">📦</span>
+                        <h6 class="text-secondary mt-2">@(Preferences.IsRtl ? "یک وسیله را برای مشاهده جزئیات انتخاب کنید" : "Select an asset to view details")</h6>
+                    </div>
+                }
+                else
+                {
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-0">@selectedAsset.Name</h5>
+                                <small class="text-muted">@selectedAsset.Brand @selectedAsset.Model @(selectedAsset.SerialNo != null ? $"• S/N: {selectedAsset.SerialNo}" : "")</small>
+                            </div>
+                            <span class="badge bg-success">@selectedAsset.Status</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-2 mb-3">
+                                <div class="col-6 col-sm-4">
+                                    <small class="text-muted d-block">@(Preferences.IsRtl ? "تاریخ خرید" : "Purchase Date")</small>
+                                    <span class="fw-bold">
+                                        @(selectedAsset.PurchaseDate.HasValue
+                                            ? CalendarService.FormatDate(selectedAsset.PurchaseDate.Value, "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                            : "-")
+                                    </span>
+                                </div>
+                                <div class="col-6 col-sm-4">
+                                    <small class="text-muted d-block">@(Preferences.IsRtl ? "پایان گارانتی" : "Warranty End")</small>
+                                    <span class="fw-bold text-danger">
+                                        @(selectedAsset.WarrantyEnd.HasValue
+                                            ? CalendarService.FormatDate(selectedAsset.WarrantyEnd.Value, "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                            : "-")
+                                    </span>
+                                </div>
+                                <div class="col-6 col-sm-4">
+                                    <small class="text-muted d-block">@(Preferences.IsRtl ? "فروشنده" : "Vendor")</small>
+                                    <span class="fw-bold">@(selectedAsset.Vendor ?? "-")</span>
+                                </div>
+                            </div>
+
+                            <!-- Maintenance Plans -->
+                            <div class="d-flex justify-content-between align-items-center mb-2 mt-4">
+                                <h6 class="mb-0 fw-bold">🔧 @(Preferences.IsRtl ? "برنامه‌های سرویس دوره‌ای" : "Maintenance Plans")</h6>
+                            </div>
+
+                            @if (!maintenancePlans.Any())
+                            {
+                                <p class="text-muted small">@(Preferences.IsRtl ? "هیچ برنامه سرویس دوره‌ای تعریف نشده است." : "No maintenance plans configured.")</p>
+                            }
+                            else
+                            {
+                                <div class="list-group mb-3">
+                                    @foreach (var plan in maintenancePlans)
+                                    {
+                                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <div class="fw-bold">@plan.Title</div>
+                                                @if (plan.NextDueAt.HasValue)
+                                                {
+                                                    <small class="text-primary">
+                                                        @(Preferences.IsRtl ? "سررسید بعدی: " : "Next due: ")
+                                                        @CalendarService.FormatDate(DateOnly.FromDateTime(plan.NextDueAt.Value.UtcDateTime), "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                                    </small>
+                                                }
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-success" @onclick="() => CompletePlan(plan)">
+                                                ✓ @(Preferences.IsRtl ? "ثبت انجام سرویس" : "Mark Done")
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            <!-- Service History -->
+                            <h6 class="mb-2 mt-4 fw-bold">📋 @(Preferences.IsRtl ? "تاریخچه سرویس و تعمیرات" : "Service History")</h6>
+                            @if (!serviceRecords.Any())
+                            {
+                                <p class="text-muted small">@(Preferences.IsRtl ? "تاکنون هیچ سابقه تعمیری ثبت نشده است." : "No service records yet.")</p>
+                            }
+                            else
+                            {
+                                <div class="list-group list-group-flush">
+                                    @foreach (var sr in serviceRecords)
+                                    {
+                                        <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                            <div>
+                                                <div class="fw-bold">@sr.Type <span class="badge bg-light text-dark">@sr.ProviderName</span></div>
+                                                <small class="text-muted">@sr.Notes</small>
+                                            </div>
+                                            <div class="text-end">
+                                                <div>@CalendarService.FormatDate(sr.Date, "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)</div>
+                                                @if (sr.Cost.HasValue)
+                                                {
+                                                    <small class="text-secondary">@sr.Cost.Value.ToString("N0")</small>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private List<AssetDto> assets = new();
+    private AssetDto? selectedAsset;
+    private List<MaintenancePlanDto> maintenancePlans = new();
+    private List<ServiceRecordDto> serviceRecords = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAssetsAsync();
+    }
+
+    private async Task LoadAssetsAsync()
+    {
+        isLoading = true;
+        try
+        {
+            assets = await AssetService.GetAssetsAsync();
+            if (assets.Any() && selectedAsset == null)
+            {
+                await SelectAsset(assets.First());
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SelectAsset(AssetDto asset)
+    {
+        selectedAsset = asset;
+        try
+        {
+            maintenancePlans = await AssetService.GetMaintenancePlansAsync(asset.Id);
+            serviceRecords = await AssetService.GetServiceRecordsAsync(asset.Id);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+    }
+
+    private async Task CompletePlan(MaintenancePlanDto plan)
+    {
+        try
+        {
+            await AssetService.CompleteMaintenancePlanAsync(
+                plan.Id,
+                DateOnly.FromDateTime(DateTime.UtcNow),
+                plan.EstimatedCost,
+                Preferences.IsRtl ? "سرویس دوره‌ای انجام شد" : "Routine maintenance completed");
+
+            if (selectedAsset != null)
+            {
+                await SelectAsset(selectedAsset);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+    }
+
+    private async Task OpenAddAssetModal()
+    {
+        try
+        {
+            var properties = await PropertyService.GetPropertiesAsync();
+            var propId = properties.FirstOrDefault()?.Id ?? Guid.NewGuid();
+
+            var categories = await AssetService.GetCategoriesAsync();
+            var catId = categories.FirstOrDefault()?.Id;
+            if (!catId.HasValue)
+            {
+                var newCat = await AssetService.CreateCategoryAsync(new CreateAssetCategoryRequest(Preferences.IsRtl ? "لوازم خانگی" : "Home Appliances", "kitchen"));
+                catId = newCat.Id;
+            }
+
+            var newAsset = await AssetService.CreateAssetAsync(new CreateAssetRequest(
+                propId,
+                null,
+                catId.Value,
+                Preferences.IsRtl ? "یخچال ساید بای ساید" : "Refrigerator",
+                "Bosch",
+                "Serie 6",
+                "SN-88219",
+                DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-6)),
+                120_000_000,
+                "Bosch Store",
+                DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(18))));
+
+            await LoadAssetsAsync();
+            await SelectAsset(newAsset);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+    }
+}

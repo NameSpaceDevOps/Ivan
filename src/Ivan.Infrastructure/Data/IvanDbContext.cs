@@ -43,6 +43,22 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<TagLink> TagLinks => Set<TagLink>();
 
+    // Phase 3 Home, Assets, People
+    public DbSet<UtilityAccount> UtilityAccounts => Set<UtilityAccount>();
+    public DbSet<MeterReading> MeterReadings => Set<MeterReading>();
+    public DbSet<Contact> Contacts => Set<Contact>();
+    public DbSet<AssetCategory> AssetCategories => Set<AssetCategory>();
+    public DbSet<Asset> Assets => Set<Asset>();
+    public DbSet<MaintenancePlan> MaintenancePlans => Set<MaintenancePlan>();
+    public DbSet<ServiceRecord> ServiceRecords => Set<ServiceRecord>();
+    public DbSet<Person> People => Set<Person>();
+    public DbSet<PersonGuardian> PersonGuardians => Set<PersonGuardian>();
+    public DbSet<HealthRecord> HealthRecords => Set<HealthRecord>();
+    public DbSet<EducationRecord> EducationRecords => Set<EducationRecord>();
+    public DbSet<PersonDocument> PersonDocuments => Set<PersonDocument>();
+    public DbSet<ImportantDate> ImportantDates => Set<ImportantDate>();
+    public DbSet<TimelineEvent> TimelineEvents => Set<TimelineEvent>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -67,6 +83,35 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
         builder.Entity<Tag>().ToTable("Tags");
         builder.Entity<TagLink>().ToTable("TagLinks");
 
+        // Phase 3 Tables
+        builder.Entity<UtilityAccount>().ToTable("UtilityAccounts");
+        builder.Entity<MeterReading>().ToTable("MeterReadings");
+        builder.Entity<Contact>().ToTable("Contacts");
+        builder.Entity<AssetCategory>().ToTable("AssetCategories");
+        builder.Entity<Asset>().ToTable("Assets");
+        builder.Entity<MaintenancePlan>().ToTable("MaintenancePlans");
+        builder.Entity<ServiceRecord>().ToTable("ServiceRecords");
+        builder.Entity<Person>().ToTable("People");
+        builder.Entity<PersonGuardian>().ToTable("PersonGuardians");
+        builder.Entity<HealthRecord>().ToTable("HealthRecords");
+        builder.Entity<EducationRecord>().ToTable("EducationRecords");
+        builder.Entity<PersonDocument>().ToTable("PersonDocuments");
+        builder.Entity<ImportantDate>().ToTable("ImportantDates");
+        builder.Entity<TimelineEvent>().ToTable("TimelineEvents");
+
+        // Relationships
+        builder.Entity<PersonGuardian>()
+            .HasOne(pg => pg.Person)
+            .WithMany(p => p.Guardians)
+            .HasForeignKey(pg => pg.PersonId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<PersonGuardian>()
+            .HasOne(pg => pg.GuardianPerson)
+            .WithMany(p => p.WardOf)
+            .HasForeignKey(pg => pg.GuardianPersonId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Indexes
         builder.Entity<Membership>().HasIndex(m => new { m.HouseholdId, m.UserId }).IsUnique();
         builder.Entity<Property>().HasIndex(p => new { p.HouseholdId, p.Name });
@@ -80,6 +125,22 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
         builder.Entity<Reminder>().HasIndex(r => new { r.State, r.FireAt });
         builder.Entity<Attachment>().HasIndex(a => new { a.HouseholdId, a.Sha256 });
         builder.Entity<TagLink>().HasIndex(tl => new { tl.HouseholdId, tl.TargetType, tl.TargetId });
+
+        // Phase 3 Indexes
+        builder.Entity<UtilityAccount>().HasIndex(u => new { u.HouseholdId, u.PropertyId });
+        builder.Entity<MeterReading>().HasIndex(m => new { m.HouseholdId, m.UtilityAccountId });
+        builder.Entity<Contact>().HasIndex(c => new { c.HouseholdId, c.Name });
+        builder.Entity<AssetCategory>().HasIndex(ac => new { ac.HouseholdId, ac.Name });
+        builder.Entity<Asset>().HasIndex(a => new { a.HouseholdId, a.PropertyId });
+        builder.Entity<MaintenancePlan>().HasIndex(mp => new { mp.HouseholdId, mp.AssetId });
+        builder.Entity<ServiceRecord>().HasIndex(sr => new { sr.HouseholdId, sr.AssetId });
+        builder.Entity<Person>().HasIndex(p => new { p.HouseholdId, p.DisplayName });
+        builder.Entity<PersonGuardian>().HasIndex(pg => new { pg.HouseholdId, pg.PersonId, pg.GuardianPersonId });
+        builder.Entity<HealthRecord>().HasIndex(hr => new { hr.HouseholdId, hr.PersonId });
+        builder.Entity<EducationRecord>().HasIndex(er => new { er.HouseholdId, er.PersonId });
+        builder.Entity<PersonDocument>().HasIndex(pd => new { pd.HouseholdId, pd.PersonId });
+        builder.Entity<ImportantDate>().HasIndex(id => new { id.HouseholdId, id.Date });
+        builder.Entity<TimelineEvent>().HasIndex(te => new { te.HouseholdId, te.SubjectType, te.SubjectId });
 
         // AppUser & Household soft delete filters
         builder.Entity<AppUser>().HasQueryFilter(u => u.DeletedAt == null);

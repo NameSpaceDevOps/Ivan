@@ -57,6 +57,12 @@ public static class DependencyInjection
         services.AddScoped<ITaskService, TaskService>();
         services.AddScoped<IReminderService, ReminderService>();
 
+        // Phase 3 Home, Assets, People
+        services.AddScoped<IHomeInfoService, HomeInfoService>();
+        services.AddScoped<IAssetService, AssetService>();
+        services.AddScoped<IPersonService, PersonService>();
+        services.AddScoped<ICalendarViewService, CalendarViewService>();
+
         return services;
     }
 }

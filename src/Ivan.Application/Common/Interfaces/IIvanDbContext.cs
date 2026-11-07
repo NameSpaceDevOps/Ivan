@@ -25,5 +25,21 @@ public interface IIvanDbContext
     DbSet<Tag> Tags { get; }
     DbSet<TagLink> TagLinks { get; }
 
+    // Phase 3 Home, Assets, People
+    DbSet<UtilityAccount> UtilityAccounts { get; }
+    DbSet<MeterReading> MeterReadings { get; }
+    DbSet<Contact> Contacts { get; }
+    DbSet<AssetCategory> AssetCategories { get; }
+    DbSet<Asset> Assets { get; }
+    DbSet<MaintenancePlan> MaintenancePlans { get; }
+    DbSet<ServiceRecord> ServiceRecords { get; }
+    DbSet<Person> People { get; }
+    DbSet<PersonGuardian> PersonGuardians { get; }
+    DbSet<HealthRecord> HealthRecords { get; }
+    DbSet<EducationRecord> EducationRecords { get; }
+    DbSet<PersonDocument> PersonDocuments { get; }
+    DbSet<ImportantDate> ImportantDates { get; }
+    DbSet<TimelineEvent> TimelineEvents { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

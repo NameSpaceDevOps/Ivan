@@ -1,0 +1,383 @@
+@page "/people"
+@rendermode InteractiveServer
+@inject IPersonService PersonService
+@inject ICalendarService CalendarService
+@inject UserPreferencesState Preferences
+
+<PageTitle>@(Preferences.IsRtl ? "افراد و اعضای خانواده — ایوان" : "People & Family — Ivan")</PageTitle>
+
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="mb-1">@(Preferences.IsRtl ? "افراد و پرونده‌ها" : "People & Dossiers")</h4>
+            <p class="text-secondary small mb-0">@(Preferences.IsRtl ? "اعضای خانواده، سلامت، مدارک، آموزش و سرپرست‌ها" : "Family members, health, documents, education and guardians")</p>
+        </div>
+        <button class="btn btn-primary btn-sm d-flex align-items-center gap-1" @onclick="OpenAddPersonModal">
+            <span>+</span>
+            <span>@(Preferences.IsRtl ? "عضو جدید" : "Add Person")</span>
+        </button>
+    </div>
+
+    <!-- Category Filter Tabs -->
+    <div class="d-flex gap-2 mb-3">
+        <button class="btn btn-sm @(selectedKind == null ? "btn-dark" : "btn-light border")" @onclick="() => FilterByKind(null)">
+            @(Preferences.IsRtl ? "همه" : "All")
+        </button>
+        <button class="btn btn-sm @(selectedKind == PersonKind.Member ? "btn-dark" : "btn-light border")" @onclick="() => FilterByKind(PersonKind.Member)">
+            @(Preferences.IsRtl ? "اعضای خانه" : "Members")
+        </button>
+        <button class="btn btn-sm @(selectedKind == PersonKind.Relative ? "btn-dark" : "btn-light border")" @onclick="() => FilterByKind(PersonKind.Relative)">
+            @(Preferences.IsRtl ? "بستگان" : "Relatives")
+        </button>
+        <button class="btn btn-sm @(selectedKind == PersonKind.Pet ? "btn-dark" : "btn-light border")" @onclick="() => FilterByKind(PersonKind.Pet)">
+            🐾 @(Preferences.IsRtl ? "حیوانات خانگی" : "Pets")
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            <!-- Left: People list -->
+            <div class="col-12 col-md-4">
+                <div class="card border-0 shadow-sm">
+                    <div class="list-group list-group-flush">
+                        @if (!filteredPeople.Any())
+                        {
+                            <div class="text-center py-4 text-muted">
+                                @(Preferences.IsRtl ? "هیچ فردی یافت نشد" : "No people found")
+                            </div>
+                        }
+                        @foreach (var p in filteredPeople)
+                        {
+                            <button type="button"
+                                    class="list-group-item list-group-item-action d-flex align-items-center justify-content-between py-3 @(selectedPerson?.Id == p.Id ? "active" : "")"
+                                    @onclick="() => SelectPerson(p)">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span style="font-size: 1.5rem;">@GetPersonIcon(p.Kind)</span>
+                                    <div>
+                                        <div class="fw-bold">@p.DisplayName</div>
+                                        <small class="@(selectedPerson?.Id == p.Id ? "text-light" : "text-muted")">
+                                            @p.Relationship ?? GetKindName(p.Kind)
+                                        </small>
+                                    </div>
+                                </div>
+                                @if (p.BirthDate.HasValue)
+                                {
+                                    <small class="badge @(selectedPerson?.Id == p.Id ? "bg-light text-dark" : "bg-light text-secondary")">
+                                        🎂 @CalendarService.FormatDate(p.BirthDate.Value, "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                    </small>
+                                }
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Person Details / Dossier -->
+            <div class="col-12 col-md-8">
+                @if (selectedPerson == null)
+                {
+                    <div class="card border-0 shadow-sm text-center py-5">
+                        <span style="font-size: 2.5rem;">👤</span>
+                        <h6 class="text-secondary mt-2">@(Preferences.IsRtl ? "یک فرد را برای مشاهده پرونده انتخاب کنید" : "Select a person to view dossier")</h6>
+                    </div>
+                }
+                else
+                {
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <span style="font-size: 1.8rem;">@GetPersonIcon(selectedPerson.Kind)</span>
+                                <div>
+                                    <h5 class="mb-0">@selectedPerson.DisplayName</h5>
+                                    <small class="text-muted">@selectedPerson.FullName</small>
+                                </div>
+                            </div>
+                            <div class="badge bg-primary">@GetKindName(selectedPerson.Kind)</div>
+                        </div>
+
+                        <!-- Dossier Tabs -->
+                        <div class="card-body">
+                            <ul class="nav nav-pills mb-3">
+                                <li class="nav-item">
+                                    <button class="nav-link @(activeTab == "health" ? "active" : "")" @onclick='() => activeTab = "health"'>
+                                        🏥 @(Preferences.IsRtl ? "سلامت و واکسیناسیون" : "Health") (@healthRecords.Count)
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link @(activeTab == "docs" ? "active" : "")" @onclick='() => activeTab = "docs"'>
+                                        📄 @(Preferences.IsRtl ? "مدارک و شناسایی" : "Documents") (@documents.Count)
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link @(activeTab == "edu" ? "active" : "")" @onclick='() => activeTab = "edu"'>
+                                        🎓 @(Preferences.IsRtl ? "آموزش و تحصیل" : "Education") (@educationRecords.Count)
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link @(activeTab == "guardians" ? "active" : "")" @onclick='() => activeTab = "guardians"'>
+                                        🛡️ @(Preferences.IsRtl ? "سرپرستان" : "Guardians") (@guardians.Count)
+                                    </button>
+                                </li>
+                            </ul>
+
+                            @if (activeTab == "health")
+                            {
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="mb-0">@(Preferences.IsRtl ? "سوابق سلامت و دارو" : "Health Records")</h6>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="OpenAddHealthModal">+ @(Preferences.IsRtl ? "ثبت سابقه" : "Add Record")</button>
+                                </div>
+                                @if (!healthRecords.Any())
+                                {
+                                    <p class="text-muted py-3">@(Preferences.IsRtl ? "هیچ سابقه پزشکی یا واکسیناسیونی ثبت نشده است." : "No health records recorded.")</p>
+                                }
+                                else
+                                {
+                                    <div class="list-group list-group-flush">
+                                        @foreach (var h in healthRecords)
+                                        {
+                                            <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                                <div>
+                                                    <div class="fw-bold">@h.Title <span class="badge bg-secondary">@h.Type</span></div>
+                                                    <small class="text-muted">@h.DetailsJson</small>
+                                                </div>
+                                                <div class="text-end">
+                                                    <div>@CalendarService.FormatDate(h.Date, "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)</div>
+                                                    @if (h.NextDueDate.HasValue)
+                                                    {
+                                                        <small class="text-warning fw-bold">
+                                                            @(Preferences.IsRtl ? "نوبت بعدی: " : "Next due: ")
+                                                            @CalendarService.FormatDate(h.NextDueDate.Value, "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                                        </small>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            }
+                            else if (activeTab == "docs")
+                            {
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="mb-0">@(Preferences.IsRtl ? "مدارک هویتی و اسناد" : "Documents")</h6>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="OpenAddDocModal">+ @(Preferences.IsRtl ? "افزودن مدرک" : "Add Document")</button>
+                                </div>
+                                @if (!documents.Any())
+                                {
+                                    <p class="text-muted py-3">@(Preferences.IsRtl ? "هیچ مدرکی ثبت نشده است." : "No documents recorded.")</p>
+                                }
+                                else
+                                {
+                                    <div class="list-group list-group-flush">
+                                        @foreach (var doc in documents)
+                                        {
+                                            <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                                <div>
+                                                    <div class="fw-bold">@doc.Type</div>
+                                                    <small class="text-muted">@doc.Number</small>
+                                                </div>
+                                                <div class="text-end">
+                                                    @if (doc.ExpiryDate.HasValue)
+                                                    {
+                                                        <div class="text-danger fw-bold">
+                                                            @(Preferences.IsRtl ? "انقضا: " : "Expires: ")
+                                                            @CalendarService.FormatDate(doc.ExpiryDate.Value, "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            }
+                            else if (activeTab == "edu")
+                            {
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="mb-0">@(Preferences.IsRtl ? "سوابق آموزشی و تحصیلی" : "Education Records")</h6>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="OpenAddEduModal">+ @(Preferences.IsRtl ? "ثبت مقطع" : "Add Education")</button>
+                                </div>
+                                @if (!educationRecords.Any())
+                                {
+                                    <p class="text-muted py-3">@(Preferences.IsRtl ? "هیچ سابقه‌ای ثبت نشده است." : "No education records recorded.")</p>
+                                }
+                                else
+                                {
+                                    <div class="list-group list-group-flush">
+                                        @foreach (var edu in educationRecords)
+                                        {
+                                            <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                                <div>
+                                                    <div class="fw-bold">@edu.Institution</div>
+                                                    <small class="text-muted">@edu.Level (@edu.StartYear - @(edu.EndYear?.ToString() ?? (Preferences.IsRtl ? "اکنون" : "Present")))</small>
+                                                </div>
+                                                <small class="text-secondary">@edu.Notes</small>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            }
+                            else if (activeTab == "guardians")
+                            {
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="mb-0">@(Preferences.IsRtl ? "سرپرستان تعیین‌شده" : "Assigned Guardians")</h6>
+                                </div>
+                                @if (!guardians.Any())
+                                {
+                                    <p class="text-muted py-3">@(Preferences.IsRtl ? "هیچ سرپرستی ثبت نشده است." : "No guardians assigned.")</p>
+                                }
+                                else
+                                {
+                                    <div class="list-group list-group-flush">
+                                        @foreach (var g in guardians)
+                                        {
+                                            <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span>🛡️</span>
+                                                    <div>
+                                                        <div class="fw-bold">@g.DisplayName</div>
+                                                        <small class="text-muted">@g.Relationship</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private List<PersonDto> people = new();
+    private PersonDto? selectedPerson;
+    private PersonKind? selectedKind;
+    private string activeTab = "health";
+
+    private List<HealthRecordDto> healthRecords = new();
+    private List<PersonDocumentDto> documents = new();
+    private List<EducationRecordDto> educationRecords = new();
+    private List<PersonDto> guardians = new();
+
+    private IEnumerable<PersonDto> filteredPeople =>
+        selectedKind.HasValue ? people.Where(p => p.Kind == selectedKind.Value) : people;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPeopleAsync();
+    }
+
+    private async Task LoadPeopleAsync()
+    {
+        isLoading = true;
+        try
+        {
+            people = await PersonService.GetPeopleAsync();
+            if (people.Any() && selectedPerson == null)
+            {
+                await SelectPerson(people.First());
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SelectPerson(PersonDto person)
+    {
+        selectedPerson = person;
+        try
+        {
+            healthRecords = await PersonService.GetHealthRecordsAsync(person.Id);
+            documents = await PersonService.GetDocumentsAsync(person.Id);
+            educationRecords = await PersonService.GetEducationRecordsAsync(person.Id);
+            guardians = await PersonService.GetGuardiansAsync(person.Id);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+    }
+
+    private void FilterByKind(PersonKind? kind)
+    {
+        selectedKind = kind;
+    }
+
+    private async Task OpenAddPersonModal()
+    {
+        // Add sample person
+        var newPerson = await PersonService.CreatePersonAsync(new CreatePersonRequest(
+            PersonKind.Member,
+            Preferences.IsRtl ? "عضو جدید" : "New Member",
+            BirthDate: DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-20))));
+        await LoadPeopleAsync();
+        await SelectPerson(newPerson);
+    }
+
+    private async Task OpenAddHealthModal()
+    {
+        if (selectedPerson == null) return;
+        await PersonService.CreateHealthRecordAsync(new CreateHealthRecordRequest(
+            selectedPerson.Id,
+            HealthRecordType.Vaccine,
+            Preferences.IsRtl ? "واکسن دوره‌ای" : "Routine Vaccine",
+            DateOnly.FromDateTime(DateTime.UtcNow),
+            DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(6))));
+        await SelectPerson(selectedPerson);
+    }
+
+    private async Task OpenAddDocModal()
+    {
+        if (selectedPerson == null) return;
+        await PersonService.CreateDocumentAsync(new CreatePersonDocumentRequest(
+            selectedPerson.Id,
+            PersonDocumentType.NationalId,
+            "0012345678",
+            DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-1)),
+            DateOnly.FromDateTime(DateTime.UtcNow.AddYears(4))));
+        await SelectPerson(selectedPerson);
+    }
+
+    private async Task OpenAddEduModal()
+    {
+        if (selectedPerson == null) return;
+        await PersonService.CreateEducationRecordAsync(new CreateEducationRecordRequest(
+            selectedPerson.Id,
+            Preferences.IsRtl ? "مدرسه ایوان" : "Ivan Academy",
+            Preferences.IsRtl ? "دبستان" : "Primary School",
+            DateTime.UtcNow.Year - 2));
+        await SelectPerson(selectedPerson);
+    }
+
+    private static string GetPersonIcon(PersonKind kind) => kind switch
+    {
+        PersonKind.Member => "👤",
+        PersonKind.Relative => "👥",
+        PersonKind.Pet => "🐾",
+        _ => "👤"
+    };
+
+    private string GetKindName(PersonKind kind) => kind switch
+    {
+        PersonKind.Member => Preferences.IsRtl ? "عضو اصلی" : "Member",
+        PersonKind.Relative => Preferences.IsRtl ? "بستگان" : "Relative",
+        PersonKind.Pet => Preferences.IsRtl ? "حیوان خانگی" : "Pet",
+        _ => Preferences.IsRtl ? "سایر" : "External"
+    };
+}

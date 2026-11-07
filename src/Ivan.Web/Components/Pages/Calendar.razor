@@ -1,0 +1,198 @@
+@page "/calendar"
+@rendermode InteractiveServer
+@inject ICalendarViewService CalendarViewService
+@inject ICalendarService CalendarService
+@inject UserPreferencesState Preferences
+
+<PageTitle>@(Preferences.IsRtl ? "تقویم خانوادگی — ایوان" : "Family Calendar — Ivan")</PageTitle>
+
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="mb-1">@(Preferences.IsRtl ? "تقویم خانوادگی" : "Family Calendar")</h4>
+            <p class="text-secondary small mb-0">@(Preferences.IsRtl ? "رویدادها، وظایف، سالگردها، سرویس دوره‌ای و سررسیدها" : "Events, tasks, anniversaries, maintenance and dues")</p>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="PrevMonth">‹</button>
+            <span class="fw-bold align-self-center px-2">@currentMonthTitle</span>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="NextMonth">›</button>
+            <button class="btn btn-sm btn-outline-primary" @onclick="GoToToday">@(Preferences.IsRtl ? "امروز" : "Today")</button>
+        </div>
+    </div>
+
+    <!-- Filter chips -->
+    <div class="d-flex gap-2 overflow-x-auto pb-2 mb-3">
+        <button class="btn btn-sm @(selectedTypeFilter == null ? "btn-primary" : "btn-light border")" @onclick="() => SetTypeFilter(null)">
+            @(Preferences.IsRtl ? "همه رویدادها" : "All") (@calendarEvents.Count)
+        </button>
+        <button class="btn btn-sm @(selectedTypeFilter == CalendarItemType.Task ? "btn-info text-white" : "btn-light border")" @onclick="() => SetTypeFilter(CalendarItemType.Task)">
+            @(Preferences.IsRtl ? "وظایف" : "Tasks")
+        </button>
+        <button class="btn btn-sm @(selectedTypeFilter == CalendarItemType.Maintenance ? "btn-warning text-dark" : "btn-light border")" @onclick="() => SetTypeFilter(CalendarItemType.Maintenance)">
+            @(Preferences.IsRtl ? "نگهداری و سرویس" : "Maintenance")
+        </button>
+        <button class="btn btn-sm @(selectedTypeFilter == CalendarItemType.ImportantDate ? "btn-success text-white" : "btn-light border")" @onclick="() => SetTypeFilter(CalendarItemType.ImportantDate)">
+            @(Preferences.IsRtl ? "سالگرد و تاریخ مهم" : "Important Dates")
+        </button>
+        <button class="btn btn-sm @(selectedTypeFilter == CalendarItemType.HealthDue ? "btn-secondary text-white" : "btn-light border")" @onclick="() => SetTypeFilter(CalendarItemType.HealthDue)">
+            @(Preferences.IsRtl ? "پزشکی و سلامت" : "Health")
+        </button>
+        <button class="btn btn-sm @(selectedTypeFilter == CalendarItemType.WarrantyExpiry ? "btn-danger text-white" : "btn-light border")" @onclick="() => SetTypeFilter(CalendarItemType.WarrantyExpiry)">
+            @(Preferences.IsRtl ? "انقضای گارانتی" : "Warranty")
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-secondary">@(Preferences.IsRtl ? "در حال بارگذاری تقویم..." : "Loading calendar...")</p>
+        </div>
+    }
+    else
+    {
+        <!-- Agenda / List View -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                @if (!filteredEvents.Any())
+                {
+                    <div class="text-center py-5">
+                        <span style="font-size: 2.5rem;">📅</span>
+                        <h6 class="text-secondary mt-2">@(Preferences.IsRtl ? "هیچ رویدادی در این بازه زمانی وجود ندارد" : "No events in this period")</h6>
+                    </div>
+                }
+                else
+                {
+                    <div class="list-group list-group-flush">
+                        @foreach (var ev in filteredEvents)
+                        {
+                            <div class="list-group-item d-flex justify-content-between align-items-center py-3">
+                                <div class="d-flex align-items-center gap-3">
+                                    <span class="badge rounded-pill p-2" style="background-color: @ev.BadgeColor;">
+                                        @GetEventIcon(ev.Type)
+                                    </span>
+                                    <div>
+                                        <div class="fw-bold">@ev.Title</div>
+                                        @if (!string.IsNullOrWhiteSpace(ev.Description))
+                                        {
+                                            <small class="text-secondary">@ev.Description</small>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="fw-bold text-primary">@FormatEventDate(ev.DueAt)</div>
+                                    <small class="text-muted">@GetTypeName(ev.Type)</small>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private DateTimeOffset currentMonthStart = new DateTimeOffset(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, TimeSpan.Zero);
+    private List<CalendarEventDto> calendarEvents = new();
+    private CalendarItemType? selectedTypeFilter;
+    private string currentMonthTitle = "";
+
+    private IEnumerable<CalendarEventDto> filteredEvents =>
+        selectedTypeFilter.HasValue
+            ? calendarEvents.Where(e => e.Type == selectedTypeFilter.Value)
+            : calendarEvents;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCalendarAsync();
+    }
+
+    private async Task LoadCalendarAsync()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        var monthEnd = currentMonthStart.AddMonths(1).AddDays(7);
+        var monthStart = currentMonthStart.AddDays(-7);
+
+        currentMonthTitle = CalendarService.FormatDate(
+            DateOnly.FromDateTime(currentMonthStart.UtcDateTime),
+            "yyyy/MM",
+            Preferences.Calendar,
+            Preferences.DigitStyle);
+
+        try
+        {
+            calendarEvents = await CalendarViewService.GetCalendarEventsAsync(new CalendarViewRequest(monthStart, monthEnd));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+            calendarEvents = new();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task PrevMonth()
+    {
+        currentMonthStart = currentMonthStart.AddMonths(-1);
+        await LoadCalendarAsync();
+    }
+
+    private async Task NextMonth()
+    {
+        currentMonthStart = currentMonthStart.AddMonths(1);
+        await LoadCalendarAsync();
+    }
+
+    private async Task GoToToday()
+    {
+        var now = DateTime.UtcNow;
+        currentMonthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        await LoadCalendarAsync();
+    }
+
+    private void SetTypeFilter(CalendarItemType? type)
+    {
+        selectedTypeFilter = type;
+    }
+
+    private string FormatEventDate(DateTimeOffset date)
+    {
+        return CalendarService.FormatDate(
+            DateOnly.FromDateTime(date.UtcDateTime),
+            "yyyy/MM/dd",
+            Preferences.Calendar,
+            Preferences.DigitStyle);
+    }
+
+    private static string GetEventIcon(CalendarItemType type) => type switch
+    {
+        CalendarItemType.Task => "✓",
+        CalendarItemType.Maintenance => "🔧",
+        CalendarItemType.ImportantDate => "⭐",
+        CalendarItemType.Birthday => "🎂",
+        CalendarItemType.HealthDue => "💊",
+        CalendarItemType.DocumentExpiry => "📄",
+        CalendarItemType.WarrantyExpiry => "🛡️",
+        _ => "•"
+    };
+
+    private string GetTypeName(CalendarItemType type) => type switch
+    {
+        CalendarItemType.Task => Preferences.IsRtl ? "وظیفه" : "Task",
+        CalendarItemType.Maintenance => Preferences.IsRtl ? "سرویس و نگهداری" : "Maintenance",
+        CalendarItemType.ImportantDate => Preferences.IsRtl ? "رویداد مهم" : "Important Date",
+        CalendarItemType.Birthday => Preferences.IsRtl ? "تولد" : "Birthday",
+        CalendarItemType.HealthDue => Preferences.IsRtl ? "پزشکی" : "Health",
+        CalendarItemType.DocumentExpiry => Preferences.IsRtl ? "انقضای مدرک" : "Doc Expiry",
+        CalendarItemType.WarrantyExpiry => Preferences.IsRtl ? "انقضای گارانتی" : "Warranty",
+        _ => ""
+    };
+}
