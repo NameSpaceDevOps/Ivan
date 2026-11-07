@@ -2,19 +2,19 @@ using Ivan.Domain.Enums;
 
 namespace Ivan.Application.Services;
 
-public record SetupWizardRequest
+public class SetupWizardRequest
 {
-    public string HouseholdName { get; init; } = "خانواده من";
-    public string OwnerUserName { get; init; } = "admin";
-    public string OwnerDisplayName { get; init; } = "مدیر خانه";
-    public string OwnerPassword { get; init; } = string.Empty;
-    public string? OwnerEmail { get; init; }
-    public string? OwnerPhone { get; init; }
-    public string DefaultCulture { get; init; } = "fa-IR";
-    public CalendarType DefaultCalendar { get; init; } = CalendarType.Jalali;
-    public string DefaultCurrency { get; init; } = "IRR";
-    public string InitialPropertyName { get; init; } = "خانه اصلی";
-    public PropertyType InitialPropertyType { get; init; } = PropertyType.Home;
+    public string HouseholdName { get; set; } = "خانواده من";
+    public string OwnerUserName { get; set; } = "admin";
+    public string OwnerDisplayName { get; set; } = "مدیر خانه";
+    public string OwnerPassword { get; set; } = string.Empty;
+    public string? OwnerEmail { get; set; }
+    public string? OwnerPhone { get; set; }
+    public string DefaultCulture { get; set; } = "fa-IR";
+    public CalendarType DefaultCalendar { get; set; } = CalendarType.Jalali;
+    public string DefaultCurrency { get; set; } = "IRR";
+    public string InitialPropertyName { get; set; } = "خانه اصلی";
+    public PropertyType InitialPropertyType { get; set; } = PropertyType.Home;
 }
 
 public record SetupWizardResult

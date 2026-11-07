@@ -31,11 +31,23 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
     public DbSet<Property> Properties => Set<Property>();
     public DbSet<Space> Spaces => Set<Space>();
 
+    // Phase 2 Engine
+    public DbSet<Recurrence> Recurrences => Set<Recurrence>();
+    public DbSet<Checklist> Checklists => Set<Checklist>();
+    public DbSet<ChecklistItem> ChecklistItems => Set<ChecklistItem>();
+    public DbSet<TaskItem> TaskItems => Set<TaskItem>();
+    public DbSet<Reminder> Reminders => Set<Reminder>();
+    public DbSet<NotificationChannel> NotificationChannels => Set<NotificationChannel>();
+    public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
+    public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<Tag> Tags => Set<Tag>();
+    public DbSet<TagLink> TagLinks => Set<TagLink>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
 
-        // Configure table names
+        // Table names
         builder.Entity<Household>().ToTable("Households");
         builder.Entity<Membership>().ToTable("Memberships");
         builder.Entity<AccessGrant>().ToTable("AccessGrants");
@@ -44,16 +56,33 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
         builder.Entity<Property>().ToTable("Properties");
         builder.Entity<Space>().ToTable("Spaces");
 
+        builder.Entity<Recurrence>().ToTable("Recurrences");
+        builder.Entity<Checklist>().ToTable("Checklists");
+        builder.Entity<ChecklistItem>().ToTable("ChecklistItems");
+        builder.Entity<TaskItem>().ToTable("TaskItems");
+        builder.Entity<Reminder>().ToTable("Reminders");
+        builder.Entity<NotificationChannel>().ToTable("NotificationChannels");
+        builder.Entity<NotificationLog>().ToTable("NotificationLogs");
+        builder.Entity<Attachment>().ToTable("Attachments");
+        builder.Entity<Tag>().ToTable("Tags");
+        builder.Entity<TagLink>().ToTable("TagLinks");
+
         // Indexes
         builder.Entity<Membership>().HasIndex(m => new { m.HouseholdId, m.UserId }).IsUnique();
         builder.Entity<Property>().HasIndex(p => new { p.HouseholdId, p.Name });
         builder.Entity<Space>().HasIndex(s => new { s.HouseholdId, s.PropertyId });
         builder.Entity<AuditLog>().HasIndex(a => new { a.HouseholdId, a.At });
 
-        // AppUser soft delete
-        builder.Entity<AppUser>().HasQueryFilter(u => u.DeletedAt == null);
+        builder.Entity<Checklist>().HasIndex(c => new { c.HouseholdId, c.IsTemplate });
+        builder.Entity<ChecklistItem>().HasIndex(ci => new { ci.HouseholdId, ci.ChecklistId });
+        builder.Entity<TaskItem>().HasIndex(t => new { t.HouseholdId, t.Status });
+        builder.Entity<Reminder>().HasIndex(r => new { r.HouseholdId, r.DedupKey }).IsUnique();
+        builder.Entity<Reminder>().HasIndex(r => new { r.State, r.FireAt });
+        builder.Entity<Attachment>().HasIndex(a => new { a.HouseholdId, a.Sha256 });
+        builder.Entity<TagLink>().HasIndex(tl => new { tl.HouseholdId, tl.TargetType, tl.TargetId });
 
-        // Household soft delete
+        // AppUser & Household soft delete filters
+        builder.Entity<AppUser>().HasQueryFilter(u => u.DeletedAt == null);
         builder.Entity<Household>().HasQueryFilter(h => h.DeletedAt == null);
 
         // Apply tenant and soft delete filters to all BaseTenantEntity types
@@ -97,7 +126,7 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
 
         foreach (var entry in ChangeTracker.Entries())
         {
-            // Soft delete interception (Story 1.8)
+            // Soft delete interception
             if (entry.State == EntityState.Deleted && entry.Entity is ISoftDeletable softDeletable)
             {
                 entry.State = EntityState.Modified;
@@ -113,7 +142,6 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
                     auditable.CreatedBy ??= currentUserId;
                 }
 
-                // Automatic stamping of HouseholdId (Section 3.2 / Story 1.3)
                 if (entry.Entity is ITenantEntity tenant && tenant.HouseholdId == Guid.Empty && currentHouseholdId.HasValue)
                 {
                     tenant.HouseholdId = currentHouseholdId.Value;

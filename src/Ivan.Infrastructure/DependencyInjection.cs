@@ -50,6 +50,13 @@ public static class DependencyInjection
         services.AddScoped<IAccessGrantService, AccessGrantService>();
         services.AddScoped<IAuditService, AuditService>();
 
+        // Phase 2 Engine Services
+        services.AddSingleton<IRecurrenceEngine, RecurrenceEngine>();
+        services.AddScoped<IAttachmentStorage, AttachmentStorage>();
+        services.AddScoped<IChecklistService, ChecklistService>();
+        services.AddScoped<ITaskService, TaskService>();
+        services.AddScoped<IReminderService, ReminderService>();
+
         return services;
     }
 }

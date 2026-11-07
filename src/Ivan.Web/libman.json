@@ -1,0 +1,11 @@
+{
+  "version": "3.0",
+  "defaultProvider": "cdnjs",
+  "libraries": [
+    {
+      "provider": "jsdelivr",
+      "library": "vazirmatn@33.0.3",
+      "destination": "wwwroot/lib/vazirmatn/"
+    }
+  ]
+}

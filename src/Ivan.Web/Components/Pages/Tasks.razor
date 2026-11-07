@@ -1,0 +1,211 @@
+@page "/tasks"
+@using Ivan.Application.Services
+@using Ivan.Domain.Entities
+@using Ivan.Domain.Enums
+@using Ivan.Web.Components.Common
+@inject ITaskService TaskService
+@inject ICalendarService CalendarService
+@inject UserPreferencesState Preferences
+@inject NotificationService NotificationService
+
+<PageTitle>@(Preferences.IsRtl ? "کارها و وظایف — ایوان" : "Tasks — Ivan")</PageTitle>
+
+<div class="container-fluid px-0">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h4 class="fw-bold mb-0">
+            @(Preferences.IsRtl ? "✓ کارها و چک‌لیست‌ها" : "✓ Tasks & Checklists")
+        </h4>
+        <button class="btn btn-primary btn-sm px-3" @onclick="ToggleNewTaskForm">
+            + @(Preferences.IsRtl ? "وظیفه جدید" : "New Task")
+        </button>
+    </div>
+
+    @if (showNewTaskForm)
+    {
+        <div class="card shadow-sm border-0 mb-4" style="border-radius: 0.75rem;">
+            <div class="card-body p-3">
+                <h6 class="fw-bold mb-3 text-primary">@(Preferences.IsRtl ? "ثبت کار جدید" : "Create New Task")</h6>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">عنوان کار:</label>
+                        <input type="text" class="form-control form-control-sm" @bind="newTaskTitle" placeholder="مثال: خرید مواد شوینده" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">اولویت:</label>
+                        <select class="form-select form-select-sm" @bind="newTaskPriority">
+                            <option value="@TaskPriority.Low">@(Preferences.IsRtl ? "پایین" : "Low")</option>
+                            <option value="@TaskPriority.Medium">@(Preferences.IsRtl ? "متوسط" : "Medium")</option>
+                            <option value="@TaskPriority.High">@(Preferences.IsRtl ? "بالا" : "High")</option>
+                            <option value="@TaskPriority.Urgent">@(Preferences.IsRtl ? "فوری" : "Urgent")</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">موعد انجام:</label>
+                        <IvanJalaliDatePicker @bind-Value="newTaskDueDate" Placeholder="انتخاب موعد" />
+                    </div>
+                </div>
+                <div class="mt-3 d-flex justify-content-end gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleNewTaskForm">انصراف</button>
+                    <button class="btn btn-sm btn-primary px-3" @onclick="CreateTask">ذخیره کار</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Filter Buttons -->
+    <div class="d-flex gap-1 mb-3">
+        <button class="btn btn-sm @(selectedFilter == null ? "btn-primary" : "btn-outline-secondary")" @onclick="() => FilterByStatus(null)">
+            @(Preferences.IsRtl ? "همه" : "All")
+        </button>
+        <button class="btn btn-sm @(selectedFilter == TaskItemStatus.Todo ? "btn-primary" : "btn-outline-secondary")" @onclick="() => FilterByStatus(TaskItemStatus.Todo)">
+            @(Preferences.IsRtl ? "انجام‌نشده" : "Pending")
+        </button>
+        <button class="btn btn-sm @(selectedFilter == TaskItemStatus.Done ? "btn-primary" : "btn-outline-secondary")" @onclick="() => FilterByStatus(TaskItemStatus.Done)">
+            @(Preferences.IsRtl ? "انجام‌شده" : "Done")
+        </button>
+    </div>
+
+    <!-- Task List -->
+    @if (isLoading)
+    {
+        <div class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-primary"></div>
+        </div>
+    }
+    else if (tasks.Count == 0)
+    {
+        <div class="card border-0 shadow-sm p-5 text-center text-secondary" style="border-radius: 1rem;">
+            <div class="fs-1 mb-2">📋</div>
+            <p class="mb-0">@(Preferences.IsRtl ? "هیچ کاری در این بخش یافت نشد." : "No tasks found.")</p>
+        </div>
+    }
+    else
+    {
+        <div class="list-group shadow-sm border-0" style="border-radius: 0.75rem;">
+            @foreach (var task in tasks)
+            {
+                var isDone = task.Status == TaskItemStatus.Done;
+                <div class="list-group-item d-flex align-items-center justify-content-between p-3 border-bottom @(isDone ? "bg-light opacity-75" : "")">
+                    <div class="d-flex align-items-center gap-3">
+                        <input type="checkbox"
+                               class="form-check-input mt-0"
+                               style="width: 22px; height: 22px; cursor: pointer;"
+                               checked="@isDone"
+                               @onchange="(e) => ToggleDone(task, (bool?)e.Value ?? false)" />
+
+                        <div>
+                            <div class="fw-bold @(isDone ? "text-decoration-line-through text-secondary" : "")">
+                                @task.Title
+                            </div>
+                            @if (task.DueAt.HasValue)
+                            {
+                                <small class="text-secondary">
+                                    موعد: @CalendarService.FormatDate(DateOnly.FromDateTime(task.DueAt.Value.DateTime), "yyyy/MM/dd", CalendarType.Jalali, Preferences.DigitStyle)
+                                </small>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge @GetPriorityBadgeClass(task.Priority)">
+                            @GetPriorityText(task.Priority)
+                        </span>
+
+                        <button class="btn btn-sm btn-link text-danger p-0 ms-2" @onclick="() => DeleteTask(task.Id)" title="حذف">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<TaskItem> tasks = new();
+    private bool isLoading = true;
+    private bool showNewTaskForm = false;
+    private TaskItemStatus? selectedFilter = null;
+
+    private string newTaskTitle = string.Empty;
+    private TaskPriority newTaskPriority = TaskPriority.Medium;
+    private DateOnly? newTaskDueDate = DateOnly.FromDateTime(DateTime.Today);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTasks();
+    }
+
+    private async Task LoadTasks()
+    {
+        isLoading = true;
+        var result = await TaskService.GetTasksAsync(status: selectedFilter);
+        tasks = result.ToList();
+        isLoading = false;
+    }
+
+    private async Task FilterByStatus(TaskItemStatus? status)
+    {
+        selectedFilter = status;
+        await LoadTasks();
+    }
+
+    private void ToggleNewTaskForm()
+    {
+        showNewTaskForm = !showNewTaskForm;
+    }
+
+    private async Task CreateTask()
+    {
+        if (string.IsNullOrWhiteSpace(newTaskTitle)) return;
+
+        DateTimeOffset? dueOffset = newTaskDueDate.HasValue
+            ? new DateTimeOffset(newTaskDueDate.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
+            : null;
+
+        await TaskService.CreateTaskAsync(new CreateTaskRequest(
+            newTaskTitle.Trim(),
+            Priority: newTaskPriority,
+            DueAt: dueOffset));
+
+        newTaskTitle = string.Empty;
+        showNewTaskForm = false;
+        await LoadTasks();
+
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Success,
+            Summary = "کار با موفقیت ثبت شد",
+            Duration = 3000
+        });
+    }
+
+    private async Task ToggleDone(TaskItem task, bool done)
+    {
+        var newStatus = done ? TaskItemStatus.Done : TaskItemStatus.Todo;
+        await TaskService.UpdateStatusAsync(task.Id, newStatus);
+        await LoadTasks();
+    }
+
+    private async Task DeleteTask(Guid taskId)
+    {
+        await TaskService.DeleteTaskAsync(taskId);
+        await LoadTasks();
+    }
+
+    private string GetPriorityBadgeClass(TaskPriority priority) => priority switch
+    {
+        TaskPriority.Urgent => "bg-danger",
+        TaskPriority.High => "bg-warning text-dark",
+        TaskPriority.Medium => "bg-primary",
+        _ => "bg-secondary"
+    };
+
+    private string GetPriorityText(TaskPriority priority) => priority switch
+    {
+        TaskPriority.Urgent => "فوری",
+        TaskPriority.High => "بالا",
+        TaskPriority.Medium => "متوسط",
+        _ => "پایین"
+    };
+}

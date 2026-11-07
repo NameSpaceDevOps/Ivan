@@ -24,7 +24,6 @@ public class MultiTenancyIsolationTests : IDisposable
             .UseSqlite(_connection)
             .Options;
 
-        // Ensure database schema is created
         var dummyContext = new CurrentUserContext();
         using var initContext = new IvanDbContext(_options, dummyContext);
         initContext.Database.EnsureCreated();
@@ -62,7 +61,6 @@ public class MultiTenancyIsolationTests : IDisposable
         var householdA = Guid.NewGuid();
         var householdB = Guid.NewGuid();
 
-        // Seed data for Household A
         var contextA = new CurrentUserContext();
         contextA.SetContext(Guid.NewGuid(), householdA, MembershipRole.Owner);
 
@@ -76,7 +74,6 @@ public class MultiTenancyIsolationTests : IDisposable
             await dbA.SaveChangesAsync();
         }
 
-        // Seed data for Household B
         var contextB = new CurrentUserContext();
         contextB.SetContext(Guid.NewGuid(), householdB, MembershipRole.Owner);
 
@@ -90,24 +87,19 @@ public class MultiTenancyIsolationTests : IDisposable
             await dbB.SaveChangesAsync();
         }
 
-        // Query under Household A context
         using (var queryContext = new IvanDbContext(_options, contextA))
         {
-            // Verify Property
             var props = await queryContext.Properties.ToListAsync();
             Assert.All(props, p => Assert.Equal(householdA, p.HouseholdId));
             Assert.Contains(props, p => p.Name == "ملک خانواده الف");
             Assert.DoesNotContain(props, p => p.Name == "ملک خانواده ب");
 
-            // Verify Memberships
             var members = await queryContext.Memberships.ToListAsync();
             Assert.All(members, m => Assert.Equal(householdA, m.HouseholdId));
 
-            // Verify AccessGrants
             var grants = await queryContext.AccessGrants.ToListAsync();
             Assert.All(grants, g => Assert.Equal(householdA, g.HouseholdId));
 
-            // Verify AuditLogs
             var logs = await queryContext.AuditLogs.ToListAsync();
             Assert.All(logs, l => Assert.Equal(householdA, l.HouseholdId));
             Assert.Contains(logs, l => l.Summary == "تست الف");
@@ -120,7 +112,7 @@ public class MultiTenancyIsolationTests : IDisposable
     {
         var domainAssembly = typeof(ITenantEntity).Assembly;
         var entityTypes = domainAssembly.GetTypes()
-            .Where(t => t.IsClass && !t.IsAbstract && t.Namespace != null && t.Namespace.Contains("Entities"))
+            .Where(t => t.IsClass && !t.IsAbstract && !t.IsNested && !t.Name.Contains('<') && t.Namespace != null && t.Namespace.Contains("Entities"))
             .ToList();
 
         // Every entity except Household itself must implement ITenantEntity
