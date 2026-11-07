@@ -18,9 +18,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
-    <Version>1.2.232.3</Version>
-    <AssemblyVersion>1.2.232.3</AssemblyVersion>
-    <FileVersion>1.2.232.3</FileVersion>
+    <Version>1.2.232.4</Version>
+    <AssemblyVersion>1.2.232.4</AssemblyVersion>
+    <FileVersion>1.2.232.4</FileVersion>
   </PropertyGroup>
 
 </Project>
