@@ -36,9 +36,10 @@ public class DashboardService : IDashboardService
 
         // Finance KPIs
         var netWorthReport = await _financeService.GetNetWorthReportAsync(ct: ct);
-        var accounts = await _financeService.GetAccountsAsync(ct: ct);
-        var cashAccounts = accounts.Where(a => a.Type == AccountType.Asset && (a.SubType == AccountSubType.Cash || a.SubType == AccountSubType.Bank));
-        long totalCash = cashAccounts.Sum(a => a.CurrentBalance);
+        var cashAccounts = await _financeService.GetAccountsAsync(type: AccountType.Asset, ct: ct);
+        long totalCash = cashAccounts
+            .Where(a => a.SubType == AccountSubType.Cash || a.SubType == AccountSubType.Bank)
+            .Sum(a => a.CurrentBalance);
 
         // Pending approvals
         var pendingRoutines = (await _childrenService.GetPendingApprovalsAsync(ct)).Count;
@@ -49,9 +50,12 @@ public class DashboardService : IDashboardService
         var now = DateTimeOffset.UtcNow;
         var today = DateOnly.FromDateTime(now.UtcDateTime);
 
-        var allTasks = await _db.TaskItems.ToListAsync(ct);
-        var overdueTasks = allTasks
-            .Count(t => t.DueAt.HasValue && t.DueAt.Value < now && t.Status != TaskItemStatus.Done && t.Status != TaskItemStatus.Cancelled);
+        var pendingTasks = await _db.TaskItems
+            .Where(t => t.DueAt != null && t.Status != TaskItemStatus.Done && t.Status != TaskItemStatus.Cancelled)
+            .Select(t => new { t.Id, t.Title, t.Details, t.DueAt, t.Priority })
+            .ToListAsync(ct);
+
+        var overdueTasks = pendingTasks.Count(t => t.DueAt!.Value < now);
 
         var activeLoans = await _db.BookLoans
             .CountAsync(l => l.Status == LoanStatus.Active, ct);
@@ -62,8 +66,8 @@ public class DashboardService : IDashboardService
 
         var dueSoonList = new List<DashboardDueItemDto>();
 
-        var tasks = allTasks
-            .Where(t => t.DueAt.HasValue && t.DueAt.Value >= now && t.DueAt.Value <= next7DaysUtc && t.Status != TaskItemStatus.Done)
+        var tasks = pendingTasks
+            .Where(t => t.DueAt!.Value >= now && t.DueAt.Value <= next7DaysUtc)
             .ToList();
 
         foreach (var t in tasks)

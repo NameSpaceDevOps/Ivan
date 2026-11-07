@@ -40,14 +40,13 @@ public class FinanceService : IFinanceService
 
         var list = await query.OrderBy(a => a.Code).ToListAsync(ct);
 
+        var trialBalance = await _ledgerService.GetTrialBalanceAsync(null, ct);
+        var balances = trialBalance.ToDictionary(t => t.AccountId, t => t.NetBalance);
+
         var result = new List<AccountDto>();
         foreach (var a in list)
         {
-            long balance = 0;
-            if (!a.IsGroup)
-            {
-                balance = await _ledgerService.GetAccountBalanceAsync(a.Id, null, ct);
-            }
+            balances.TryGetValue(a.Id, out var balance);
             result.Add(new AccountDto(
                 a.Id,
                 a.Code,
@@ -247,22 +246,9 @@ public class FinanceService : IFinanceService
 
     public async Task<NetWorthReport> GetNetWorthReportAsync(DateOnly? asOf = null, CancellationToken ct = default)
     {
-        var accounts = await _db.Accounts
-            .Where(a => !a.IsGroup && (a.Type == AccountType.Asset || a.Type == AccountType.Liability))
-            .ToListAsync(ct);
-
-        long assets = 0;
-        long liabilities = 0;
-
-        foreach (var a in accounts)
-        {
-            long bal = await _ledgerService.GetAccountBalanceAsync(a.Id, asOf, ct);
-            if (a.Type == AccountType.Asset)
-                assets += bal;
-            else if (a.Type == AccountType.Liability)
-                liabilities += bal;
-        }
-
+        var trialBalance = await _ledgerService.GetTrialBalanceAsync(asOf, ct);
+        long assets = trialBalance.Where(r => r.Type == AccountType.Asset).Sum(r => r.NetBalance);
+        long liabilities = trialBalance.Where(r => r.Type == AccountType.Liability).Sum(r => r.NetBalance);
         return new NetWorthReport(assets, liabilities, assets - liabilities);
     }
 

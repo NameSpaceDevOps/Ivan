@@ -140,16 +140,33 @@ public class LedgerService : ILedgerService
         var account = await _db.Accounts.FindAsync([accountId], ct)
             ?? throw new KeyNotFoundException($"Account {accountId} not found.");
 
-        var query = _db.JournalLines
-            .Include(l => l.Entry)
-            .Where(l => l.AccountId == accountId);
+        long totalDebit;
+        long totalCredit;
 
-        if (asOf.HasValue)
-            query = query.Where(l => l.Entry != null && l.Entry.Date <= asOf.Value);
+        if (!asOf.HasValue)
+        {
+            var lineTotals = await _db.JournalLines
+                .Where(l => l.AccountId == accountId)
+                .GroupBy(l => 1)
+                .Select(g => new { Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) })
+                .FirstOrDefaultAsync(ct);
 
-        var lines = await query.ToListAsync(ct);
-        long totalDebit = lines.Sum(l => l.Debit);
-        long totalCredit = lines.Sum(l => l.Credit);
+            totalDebit = lineTotals?.Debit ?? 0;
+            totalCredit = lineTotals?.Credit ?? 0;
+        }
+        else
+        {
+            var query = _db.JournalLines
+                .Where(l => l.AccountId == accountId && l.Entry != null && l.Entry.Date <= asOf.Value);
+
+            var lineTotals = await query
+                .GroupBy(l => 1)
+                .Select(g => new { Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) })
+                .FirstOrDefaultAsync(ct);
+
+            totalDebit = lineTotals?.Debit ?? 0;
+            totalCredit = lineTotals?.Credit ?? 0;
+        }
 
         return account.Type switch
         {
@@ -165,21 +182,29 @@ public class LedgerService : ILedgerService
             .OrderBy(a => a.Code)
             .ToListAsync(ct);
 
-        var query = _db.JournalLines
-            .Include(l => l.Entry)
-            .AsQueryable();
-
-        if (asOf.HasValue)
-            query = query.Where(l => l.Entry != null && l.Entry.Date <= asOf.Value);
-
-        var lines = await query.ToListAsync(ct);
+        Dictionary<Guid, (long Debit, long Credit)> lineTotalsByAccount;
+        if (!asOf.HasValue)
+        {
+            lineTotalsByAccount = await _db.JournalLines
+                .GroupBy(l => l.AccountId)
+                .Select(g => new { AccountId = g.Key, Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) })
+                .ToDictionaryAsync(x => x.AccountId, x => (x.Debit, x.Credit), ct);
+        }
+        else
+        {
+            lineTotalsByAccount = await _db.JournalLines
+                .Where(l => l.Entry != null && l.Entry.Date <= asOf.Value)
+                .GroupBy(l => l.AccountId)
+                .Select(g => new { AccountId = g.Key, Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) })
+                .ToDictionaryAsync(x => x.AccountId, x => (x.Debit, x.Credit), ct);
+        }
 
         var rows = new List<TrialBalanceRow>();
         foreach (var acc in accounts)
         {
-            var accLines = lines.Where(l => l.AccountId == acc.Id).ToList();
-            long debit = accLines.Sum(l => l.Debit);
-            long credit = accLines.Sum(l => l.Credit);
+            lineTotalsByAccount.TryGetValue(acc.Id, out var totals);
+            long debit = totals.Debit;
+            long credit = totals.Credit;
             long net = acc.Type switch
             {
                 AccountType.Asset or AccountType.Expense => debit - credit,

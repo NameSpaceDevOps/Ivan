@@ -66,10 +66,14 @@ public class SearchService : ISearchService
             if (c >= '\u064B' && c <= '\u0652') continue;
             if (c == '\u0654') continue; // Hamza above
 
+            // Half-space (ZWNJ) and zero-width spaces normalized to standard space
+            if (c == '\u200C' || c == '\u200B' || c == '\u200D' || c == '\uFEFF')
+                c = ' ';
+
             sb.Append(c);
         }
 
-        return sb.ToString().Trim().ToLowerInvariant();
+        return Regex.Replace(sb.ToString(), @"\s+", " ").Trim().ToLowerInvariant();
     }
 
     public async Task<IReadOnlyList<SearchResultDto>> SearchAsync(string query, CancellationToken ct = default)
@@ -81,7 +85,10 @@ public class SearchService : ISearchService
         var results = new List<SearchResultDto>();
 
         // 1. Tasks
-        var tasks = await _db.TaskItems.ToListAsync(ct);
+        var tasks = await _db.TaskItems.AsNoTracking()
+            .Select(t => new { t.Id, t.Title, t.Details, t.Status, t.DueAt })
+            .ToListAsync(ct);
+
         foreach (var t in tasks)
         {
             if (NormalizePersianText(t.Title).Contains(normalizedQuery) ||
@@ -99,7 +106,10 @@ public class SearchService : ISearchService
         }
 
         // 2. Assets
-        var assets = await _db.Assets.ToListAsync(ct);
+        var assets = await _db.Assets.AsNoTracking()
+            .Select(a => new { a.Id, a.Name, a.Brand, a.Model, a.SerialNo, a.Status })
+            .ToListAsync(ct);
+
         foreach (var a in assets)
         {
             if (NormalizePersianText(a.Name).Contains(normalizedQuery) ||
@@ -119,7 +129,10 @@ public class SearchService : ISearchService
         }
 
         // 3. People
-        var people = await _db.People.ToListAsync(ct);
+        var people = await _db.People.AsNoTracking()
+            .Select(p => new { p.Id, p.DisplayName, p.FullName, p.Relationship, p.Kind })
+            .ToListAsync(ct);
+
         foreach (var p in people)
         {
             if (NormalizePersianText(p.DisplayName).Contains(normalizedQuery) ||
@@ -138,7 +151,10 @@ public class SearchService : ISearchService
         }
 
         // 4. Contacts
-        var contacts = await _db.Contacts.ToListAsync(ct);
+        var contacts = await _db.Contacts.AsNoTracking()
+            .Select(c => new { c.Id, c.Name, c.Category, c.Phones, c.Email })
+            .ToListAsync(ct);
+
         foreach (var c in contacts)
         {
             if (NormalizePersianText(c.Name).Contains(normalizedQuery) ||
@@ -157,7 +173,10 @@ public class SearchService : ISearchService
         }
 
         // 5. Books
-        var books = await _db.Books.ToListAsync(ct);
+        var books = await _db.Books.AsNoTracking()
+            .Select(b => new { b.Id, b.Title, b.Author, b.Isbn, b.Status })
+            .ToListAsync(ct);
+
         foreach (var b in books)
         {
             if (NormalizePersianText(b.Title).Contains(normalizedQuery) ||
@@ -176,7 +195,10 @@ public class SearchService : ISearchService
         }
 
         // 6. Media Items
-        var mediaItems = await _db.MediaItems.ToListAsync(ct);
+        var mediaItems = await _db.MediaItems.AsNoTracking()
+            .Select(m => new { m.Id, m.Title, m.Director, m.Type })
+            .ToListAsync(ct);
+
         foreach (var m in mediaItems)
         {
             if (NormalizePersianText(m.Title).Contains(normalizedQuery) ||
@@ -194,17 +216,19 @@ public class SearchService : ISearchService
         }
 
         // 7. Journal Entries (Finance)
-        var entries = await _db.JournalEntries.Include(j => j.Lines).ToListAsync(ct);
+        var entries = await _db.JournalEntries.AsNoTracking()
+            .Select(j => new { j.Id, j.Description, j.Status, j.Date })
+            .ToListAsync(ct);
+
         foreach (var je in entries)
         {
             if (NormalizePersianText(je.Description).Contains(normalizedQuery))
             {
-                var total = je.Lines.Sum(l => l.Debit);
                 results.Add(new SearchResultDto(
                     je.Id,
                     "Finance",
                     je.Description,
-                    $"{total:N0} IRR",
+                    "تراکنش مالی",
                     "/money",
                     je.Status.ToString(),
                     new DateTimeOffset(je.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))));

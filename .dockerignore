@@ -1,0 +1,13 @@
+**/.git
+**/.github
+**/.gemini
+**/.vs
+**/.vscode
+**/bin
+**/obj
+**/app_data
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.zip
+docs/

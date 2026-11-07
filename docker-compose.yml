@@ -1,0 +1,20 @@
+services:
+  ivan:
+    image: ivan:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ivan-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - TZ=Asia/Tehran
+      - ConnectionStrings__DefaultConnection=Data Source=/app/app_data/ivan.db
+    volumes:
+      - ivan-data:/app/app_data
+
+volumes:
+  ivan-data:
+    name: ivan_data

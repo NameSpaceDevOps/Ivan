@@ -59,6 +59,14 @@
     <!-- Main View Body -->
     <main class="ivan-main-content">
         @Body
+
+        <footer class="text-center py-3 text-muted small mt-4 border-top">
+            <span>@(Preferences.IsRtl ? "ایوان (Ivan) — متن‌باز تحت مجوز AGPL-3.0" : "Ivan — Open Source under AGPL-3.0")</span>
+            &nbsp;|&nbsp;
+            <a href="https://github.com/Ivan-Manager/Ivan" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                @(Preferences.IsRtl ? "دریافت سورس‌کد" : "Source Code")
+            </a>
+        </footer>
     </main>
 
     <!-- Floating Quick-Add button -->
