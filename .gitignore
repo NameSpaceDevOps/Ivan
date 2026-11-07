@@ -1,0 +1,23 @@
+## Visual Studio / .NET
+[Bb]in/
+[Oo]bj/
+[Tt]est[Rr]esult*/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## OS generated
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+## SQLite local databases & uploads
+*.db
+*.db-shm
+*.db-wal
+app_data/
+storage/

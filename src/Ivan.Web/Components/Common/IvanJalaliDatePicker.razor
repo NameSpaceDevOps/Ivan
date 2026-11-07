@@ -1,0 +1,261 @@
+@using Ivan.Application.Services
+@using Ivan.Domain.Common
+@using Ivan.Domain.Enums
+@inject ICalendarService CalendarService
+@inject UserPreferencesState Preferences
+
+<div class="ivan-datepicker-wrapper @Class">
+    <div class="position-relative">
+        <input type="text"
+               class="ivan-datepicker-input @(hasError ? "is-invalid" : "")"
+               placeholder="@Placeholder"
+               value="@inputText"
+               @oninput="OnInputChanged"
+               @onblur="OnInputBlur"
+               disabled="@Disabled" />
+
+        <button type="button"
+                class="ivan-datepicker-icon-btn"
+                @onclick="TogglePopup"
+                disabled="@Disabled"
+                aria-label="انتخاب تاریخ">
+            📅
+        </button>
+    </div>
+
+    @if (isOpen)
+    {
+        <div class="ivan-datepicker-popup" @onclick:stopPropagation="true">
+            <div class="ivan-cal-header">
+                <button type="button" class="ivan-cal-nav-btn" @onclick="PrevMonth" aria-label="ماه قبل">
+                    @(Preferences.IsRtl ? "›" : "‹")
+                </button>
+
+                <div class="ivan-cal-title">
+                    <span>@currentMonthName</span>
+                    <span class="ms-1">@formattedCurrentYear</span>
+                </div>
+
+                <button type="button" class="ivan-cal-nav-btn" @onclick="NextMonth" aria-label="ماه بعد">
+                    @(Preferences.IsRtl ? "‹" : "›")
+                </button>
+            </div>
+
+            <div class="ivan-cal-grid">
+                @foreach (var dayName in dayHeaders)
+                {
+                    <div class="ivan-cal-dayname">@dayName</div>
+                }
+
+                @for (int i = 0; i < emptyDaysBefore; i++)
+                {
+                    <div class="ivan-cal-day empty"></div>
+                }
+
+                @for (int day = 1; day <= daysInCurrentMonth; day++)
+                {
+                    var d = day;
+                    var isSelected = Value.HasValue && selectedJalali.HasValue &&
+                                     selectedJalali.Value.Year == viewYear &&
+                                     selectedJalali.Value.Month == viewMonth &&
+                                     selectedJalali.Value.Day == d;
+
+                    var isToday = todayJalali.Year == viewYear &&
+                                  todayJalali.Month == viewMonth &&
+                                  todayJalali.Day == d;
+
+                    <div class="ivan-cal-day @(isSelected ? "selected" : "") @(isToday ? "today" : "")"
+                         @onclick="() => SelectDay(d)">
+                        @CalendarService.ConvertDigits(d.ToString(), Preferences.DigitStyle)
+                    </div>
+                }
+            </div>
+
+            <div class="ivan-cal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="SelectToday">
+                    امروز
+                </button>
+
+                @if (Value.HasValue)
+                {
+                    <button type="button" class="btn btn-sm btn-link text-danger p-0" @onclick="Clear">
+                        پاک کردن
+                    </button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public DateOnly? Value { get; set; }
+    [Parameter] public EventCallback<DateOnly?> ValueChanged { get; set; }
+
+    [Parameter] public string? Placeholder { get; set; } = "۱۴۰۳/۰۸/۱۶";
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private bool isOpen = false;
+    private bool hasError = false;
+    private string inputText = string.Empty;
+
+    private int viewYear;
+    private int viewMonth;
+    private JalaliDate? selectedJalali;
+    private JalaliDate todayJalali;
+
+    private readonly string[] dayHeaders = ["ش", "ی", "د", "س", "چ", "پ", "ج"];
+
+    protected override void OnInitialized()
+    {
+        todayJalali = JalaliDate.FromDateOnly(DateOnly.FromDateTime(DateTime.Today));
+        ResetViewToValueOrToday();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Value.HasValue)
+        {
+            selectedJalali = JalaliDate.FromDateOnly(Value.Value);
+            inputText = CalendarService.FormatDate(Value.Value, "yyyy/MM/dd", CalendarType.Jalali, Preferences.DigitStyle);
+            hasError = false;
+        }
+        else
+        {
+            selectedJalali = null;
+            inputText = string.Empty;
+        }
+    }
+
+    private void ResetViewToValueOrToday()
+    {
+        if (Value.HasValue)
+        {
+            var j = JalaliDate.FromDateOnly(Value.Value);
+            viewYear = j.Year;
+            viewMonth = j.Month;
+        }
+        else
+        {
+            viewYear = todayJalali.Year;
+            viewMonth = todayJalali.Month;
+        }
+    }
+
+    private string currentMonthName => CalendarService.GetMonthNames(CalendarType.Jalali)[viewMonth - 1];
+    private string formattedCurrentYear => CalendarService.ConvertDigits(viewYear.ToString(), Preferences.DigitStyle);
+    private int daysInCurrentMonth => JalaliDate.GetDaysInMonth(viewYear, viewMonth);
+
+    private int emptyDaysBefore
+    {
+        get
+        {
+            // Calculate DayOfWeek for first day of current Jalali month
+            var firstDay = new JalaliDate(viewYear, viewMonth, 1).ToDateOnly();
+            var dt = firstDay.ToDateTime(TimeOnly.MinValue);
+            // Saturday is index 0 in Persian calendar
+            return ((int)dt.DayOfWeek + 1) % 7;
+        }
+    }
+
+    private void TogglePopup()
+    {
+        if (Disabled) return;
+        isOpen = !isOpen;
+        if (isOpen)
+        {
+            ResetViewToValueOrToday();
+        }
+    }
+
+    private void PrevMonth()
+    {
+        if (viewMonth == 1)
+        {
+            viewMonth = 12;
+            viewYear--;
+        }
+        else
+        {
+            viewMonth--;
+        }
+    }
+
+    private void NextMonth()
+    {
+        if (viewMonth == 12)
+        {
+            viewMonth = 1;
+            viewYear++;
+        }
+        else
+        {
+            viewMonth++;
+        }
+    }
+
+    private async Task SelectDay(int day)
+    {
+        var jDate = new JalaliDate(viewYear, viewMonth, day);
+        var date = jDate.ToDateOnly();
+        Value = date;
+        selectedJalali = jDate;
+        inputText = CalendarService.FormatDate(date, "yyyy/MM/dd", CalendarType.Jalali, Preferences.DigitStyle);
+        hasError = false;
+        isOpen = false;
+        await ValueChanged.InvokeAsync(Value);
+    }
+
+    private async Task SelectToday()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today);
+        Value = date;
+        selectedJalali = JalaliDate.FromDateOnly(date);
+        viewYear = todayJalali.Year;
+        viewMonth = todayJalali.Month;
+        inputText = CalendarService.FormatDate(date, "yyyy/MM/dd", CalendarType.Jalali, Preferences.DigitStyle);
+        hasError = false;
+        isOpen = false;
+        await ValueChanged.InvokeAsync(Value);
+    }
+
+    private async Task Clear()
+    {
+        Value = null;
+        selectedJalali = null;
+        inputText = string.Empty;
+        hasError = false;
+        isOpen = false;
+        await ValueChanged.InvokeAsync(null);
+    }
+
+    private void OnInputChanged(ChangeEventArgs e)
+    {
+        inputText = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private async Task OnInputBlur()
+    {
+        if (string.IsNullOrWhiteSpace(inputText))
+        {
+            if (Value.HasValue)
+            {
+                await Clear();
+            }
+            return;
+        }
+
+        if (CalendarService.TryParseDate(inputText, out var parsedDate, CalendarType.Jalali))
+        {
+            Value = parsedDate;
+            selectedJalali = JalaliDate.FromDateOnly(parsedDate);
+            inputText = CalendarService.FormatDate(parsedDate, "yyyy/MM/dd", CalendarType.Jalali, Preferences.DigitStyle);
+            hasError = false;
+            await ValueChanged.InvokeAsync(Value);
+        }
+        else
+        {
+            hasError = true;
+        }
+    }
+}

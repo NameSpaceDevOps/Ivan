@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Ivan.Application/Ivan.Application.csproj" />
+    <Project Path="src/Ivan.Domain/Ivan.Domain.csproj" />
+    <Project Path="src/Ivan.Infrastructure/Ivan.Infrastructure.csproj" />
+    <Project Path="src/Ivan.Web/Ivan.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ivan.Tests.Integration/Ivan.Tests.Integration.csproj" />
+    <Project Path="tests/Ivan.Tests.Unit/Ivan.Tests.Unit.csproj" />
+  </Folder>
+</Solution>

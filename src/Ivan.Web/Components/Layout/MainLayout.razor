@@ -1,0 +1,176 @@
+@inherits LayoutComponentBase
+@inject UserPreferencesState Preferences
+@inject ICalendarService CalendarService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<RadzenDialog />
+<RadzenNotification />
+<RadzenContextMenu />
+<RadzenTooltip />
+
+<div class="ivan-shell" dir="@(Preferences.IsRtl ? "rtl" : "ltr")" lang="@Preferences.Culture">
+    <!-- Header -->
+    <header class="ivan-header">
+        <a href="/" class="ivan-brand">
+            <span style="font-size: 1.4rem;">🏡</span>
+            <span>@(Preferences.IsRtl ? "ایوان" : "Ivan")</span>
+        </a>
+
+        <div class="d-flex align-items-center gap-2">
+            <!-- Today's date pill -->
+            <div class="badge bg-light text-dark border px-2 py-1 d-none d-sm-block" style="font-size: 0.8rem; font-weight: 500;">
+                @formattedTodayDate
+            </div>
+
+            <!-- Persona Switcher -->
+            <select class="form-select form-select-sm py-1"
+                    style="width: auto; min-height: 36px; font-size: 0.85rem;"
+                    value="@Preferences.ActivePersona"
+                    @onchange="OnPersonaChanged">
+                <option value="Parent">@(Preferences.IsRtl ? "والدین" : "Parent")</option>
+                <option value="Teen">@(Preferences.IsRtl ? "نوجوان" : "Teen")</option>
+                <option value="Child">@(Preferences.IsRtl ? "کودک" : "Child")</option>
+            </select>
+
+            <!-- RTL / LTR Language Flip Button -->
+            <button type="button"
+                    class="btn btn-sm btn-outline-primary px-2"
+                    style="min-height: 36px; font-weight: bold;"
+                    @onclick="ToggleCulture"
+                    title="@(Preferences.IsRtl ? "تغییر زبان به انگلیسی (LTR)" : "Switch to Persian (RTL)")">
+                @(Preferences.IsRtl ? "EN" : "فا")
+            </button>
+        </div>
+    </header>
+
+    <!-- Main View Body -->
+    <main class="ivan-main-content">
+        @Body
+    </main>
+
+    <!-- Floating Quick-Add button -->
+    <button type="button"
+            class="ivan-quick-add"
+            @onclick="OpenQuickAddModal"
+            aria-label="افزودن سریع">
+        <span>+</span>
+    </button>
+
+    <!-- Mobile Bottom Navigation Bar (Section 4) -->
+    <nav class="ivan-bottom-nav">
+        <NavLink href="" Match="NavLinkMatch.All" class="ivan-bottom-nav-item">
+            <span class="ivan-bottom-nav-icon">🏠</span>
+            <span>@(Preferences.IsRtl ? "خانه" : "Home")</span>
+        </NavLink>
+
+        <NavLink href="tasks" class="ivan-bottom-nav-item">
+            <span class="ivan-bottom-nav-icon">✓</span>
+            <span>@(Preferences.IsRtl ? "کارها" : "Tasks")</span>
+        </NavLink>
+
+        <NavLink href="calendar" class="ivan-bottom-nav-item">
+            <span class="ivan-bottom-nav-icon">📅</span>
+            <span>@(Preferences.IsRtl ? "تقویم" : "Calendar")</span>
+        </NavLink>
+
+        <NavLink href="money" class="ivan-bottom-nav-item">
+            <span class="ivan-bottom-nav-icon">💳</span>
+            <span>@(Preferences.IsRtl ? "مالی" : "Money")</span>
+        </NavLink>
+
+        <NavLink href="more" class="ivan-bottom-nav-item">
+            <span class="ivan-bottom-nav-icon">☰</span>
+            <span>@(Preferences.IsRtl ? "بیشتر" : "More")</span>
+        </NavLink>
+    </nav>
+</div>
+
+@if (showQuickAddModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" @onclick="CloseQuickAddModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(Preferences.IsRtl ? "افزودن سریع" : "Quick Add")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseQuickAddModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="list-group list-group-flush">
+                        <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3" @onclick='() => NavigateToQuick("task")'>
+                            <span class="fs-4">✓</span>
+                            <div>
+                                <div class="fw-bold">@(Preferences.IsRtl ? "وظیفه یا چک‌لیست جدید" : "New Task / Checklist")</div>
+                                <small class="text-secondary">@(Preferences.IsRtl ? "ثبت یک کار روزمره یا یادآور" : "Record a routine task or reminder")</small>
+                            </div>
+                        </button>
+                        <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3" @onclick='() => NavigateToQuick("expense")'>
+                            <span class="fs-4">💸</span>
+                            <div>
+                                <div class="fw-bold">@(Preferences.IsRtl ? "ثبت هزینه / درآمد" : "New Transaction")</div>
+                                <small class="text-secondary">@(Preferences.IsRtl ? "ثبت سریع هزینه روزانه در دفترکل" : "Quick expense or income entry")</small>
+                            </div>
+                        </button>
+                        <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3" @onclick='() => NavigateToQuick("event")'>
+                            <span class="fs-4">🗓️</span>
+                            <div>
+                                <div class="fw-bold">@(Preferences.IsRtl ? "رویداد یا تاریخ مهم" : "Event / Important Date")</div>
+                                <small class="text-secondary">@(Preferences.IsRtl ? "تولد، نوبت دکتر، موعد چک، و ..." : "Birthday, appointment, cheque due date")</small>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool showQuickAddModal = false;
+
+    protected override void OnInitialized()
+    {
+        Preferences.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        Preferences.OnChange -= StateHasChanged;
+    }
+
+    private string formattedTodayDate
+    {
+        get
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            return CalendarService.FormatDate(today, "dddd d MMMM yyyy", Preferences.Calendar, Preferences.DigitStyle);
+        }
+    }
+
+    private void ToggleCulture()
+    {
+        Preferences.ToggleRtlLtr();
+    }
+
+    private void OnPersonaChanged(ChangeEventArgs e)
+    {
+        var persona = e.Value?.ToString() ?? "Parent";
+        Preferences.SetPersona(persona);
+    }
+
+    private void OpenQuickAddModal()
+    {
+        showQuickAddModal = true;
+    }
+
+    private void CloseQuickAddModal()
+    {
+        showQuickAddModal = false;
+    }
+
+    private void NavigateToQuick(string type)
+    {
+        showQuickAddModal = false;
+        // Navigation for quick items
+    }
+}

@@ -1,0 +1,46 @@
+@using Ivan.Application.Services
+@using Ivan.Domain.Common
+@using Ivan.Domain.Enums
+@inject ICalendarService CalendarService
+@inject UserPreferencesState Preferences
+
+<div class="row g-2 @Class">
+    <div class="col-6">
+        <label class="form-label small text-secondary mb-1">@StartLabel</label>
+        <IvanJalaliDatePicker Value="@StartDate"
+                              ValueChanged="@OnStartDateChanged"
+                              Placeholder="@StartPlaceholder" />
+    </div>
+    <div class="col-6">
+        <label class="form-label small text-secondary mb-1">@EndLabel</label>
+        <IvanJalaliDatePicker Value="@EndDate"
+                              ValueChanged="@OnEndDateChanged"
+                              Placeholder="@EndPlaceholder" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public DateOnly? StartDate { get; set; }
+    [Parameter] public EventCallback<DateOnly?> StartDateChanged { get; set; }
+
+    [Parameter] public DateOnly? EndDate { get; set; }
+    [Parameter] public EventCallback<DateOnly?> EndDateChanged { get; set; }
+
+    [Parameter] public string StartLabel { get; set; } = "از تاریخ";
+    [Parameter] public string EndLabel { get; set; } = "تا تاریخ";
+    [Parameter] public string StartPlaceholder { get; set; } = "تاریخ شروع";
+    [Parameter] public string EndPlaceholder { get; set; } = "تاریخ پایان";
+    [Parameter] public string? Class { get; set; }
+
+    private async Task OnStartDateChanged(DateOnly? val)
+    {
+        StartDate = val;
+        await StartDateChanged.InvokeAsync(val);
+    }
+
+    private async Task OnEndDateChanged(DateOnly? val)
+    {
+        EndDate = val;
+        await EndDateChanged.InvokeAsync(val);
+    }
+}

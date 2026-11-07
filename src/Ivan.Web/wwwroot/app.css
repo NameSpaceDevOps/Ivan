@@ -1,0 +1,277 @@
+:root {
+    --primary-color: #2563eb;
+    --primary-hover: #1d4ed8;
+    --bg-surface: #ffffff;
+    --bg-canvas: #f8fafc;
+    --border-color: #e2e8f0;
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --touch-min-size: 44px;
+}
+
+[data-bs-theme="dark"] {
+    --primary-color: #3b82f6;
+    --primary-hover: #60a5fa;
+    --bg-surface: #1e293b;
+    --bg-canvas: #0f172a;
+    --border-color: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+}
+
+html, body {
+    font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Logical spacing and typography */
+.text-start { text-align: start !important; }
+.text-end { text-align: end !important; }
+
+/* Ensure minimum touch targets for buttons and interactive controls (section 4) */
+button, input, select, textarea, .btn, .nav-item-touch {
+    min-height: var(--touch-min-size);
+}
+
+.ivan-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.ivan-header {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-color);
+    padding-inline: 1rem;
+    padding-block: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ivan-brand {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ivan-main-content {
+    flex: 1;
+    padding-inline: 1rem;
+    padding-block: 1rem 5.5rem; /* bottom padding ensures content doesn't hide behind bottom nav */
+    max-width: 900px;
+    margin-inline: auto;
+    width: 100%;
+}
+
+/* Mobile Bottom Navigation (Home, Tasks, Calendar, Money, More) */
+.ivan-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    inset-inline: 0;
+    height: 4rem;
+    background-color: var(--bg-surface);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 1030;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.ivan-bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.75rem;
+    font-weight: 500;
+    height: 100%;
+    min-width: 44px;
+    transition: color 0.15s ease-in-out;
+}
+
+.ivan-bottom-nav-item:hover, .ivan-bottom-nav-item.active {
+    color: var(--primary-color);
+}
+
+.ivan-bottom-nav-icon {
+    font-size: 1.4rem;
+    line-height: 1;
+    margin-bottom: 0.2rem;
+}
+
+/* Floating Quick Add Button (Fab) */
+.ivan-quick-add {
+    position: fixed;
+    bottom: 4.8rem;
+    inset-inline-end: 1.25rem;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+    border: none;
+    cursor: pointer;
+    z-index: 1025;
+    font-size: 1.75rem;
+    transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.ivan-quick-add:active {
+    transform: scale(0.95);
+}
+
+.ivan-quick-add:hover {
+    background-color: var(--primary-hover);
+}
+
+/* Custom Jalali Date Picker styling */
+.ivan-datepicker-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.ivan-datepicker-input {
+    width: 100%;
+    min-height: 44px;
+    padding-inline-start: 2.5rem;
+    padding-inline-end: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    font-size: 0.95rem;
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    font-family: inherit;
+}
+
+.ivan-datepicker-icon-btn {
+    position: absolute;
+    inset-inline-start: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.25rem;
+    cursor: pointer;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ivan-datepicker-popup {
+    position: absolute;
+    top: calc(100% + 4px);
+    inset-inline-start: 0;
+    z-index: 1050;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    padding: 0.75rem;
+    width: 290px;
+}
+
+.ivan-cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.ivan-cal-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.ivan-cal-nav-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-primary);
+}
+
+.ivan-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    text-align: center;
+}
+
+.ivan-cal-dayname {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding-block: 0.25rem;
+}
+
+.ivan-cal-day {
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    user-select: none;
+    transition: background-color 0.1s ease;
+}
+
+.ivan-cal-day:hover:not(.empty):not(.disabled) {
+    background-color: #e0e7ff;
+}
+
+.ivan-cal-day.today {
+    border: 1px solid var(--primary-color);
+    font-weight: bold;
+}
+
+.ivan-cal-day.selected {
+    background-color: var(--primary-color) !important;
+    color: #fff !important;
+    font-weight: bold;
+}
+
+.ivan-cal-day.empty {
+    cursor: default;
+}
+
+.ivan-cal-day.disabled {
+    color: #cbd5e1;
+    cursor: not-allowed;
+}
+
+.ivan-cal-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}

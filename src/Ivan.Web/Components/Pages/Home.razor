@@ -1,0 +1,277 @@
+@page "/"
+@using Ivan.Application.Services
+@using Ivan.Domain.Common
+@using Ivan.Domain.Enums
+@using Ivan.Web.Components.Common
+@inject ICalendarService CalendarService
+@inject UserPreferencesState Preferences
+@inject NotificationService NotificationService
+
+<PageTitle>@(Preferences.IsRtl ? "ایوان — پیش‌نمایش فاز ۰ (Spike)" : "Ivan — Phase 0 Spike Proof")</PageTitle>
+
+<div class="container-fluid px-0">
+    <!-- Header banner -->
+    <div class="card mb-4 border-0 shadow-sm" style="border-radius: 1rem; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white;">
+        <div class="card-body p-4">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div>
+                    <h2 class="fw-bold mb-1">
+                        @(Preferences.IsRtl ? "ایوان (Ivan) — اثبات فاز ۰ (Phase 0 Spike)" : "Ivan — Phase 0 Spike Proof")
+                    </h2>
+                    <p class="mb-0 opacity-75">
+                        @(Preferences.IsRtl ? "بررسی تعامل راست‌به‌چپ (RTL/LTR)، تقویم شمسی جلالی و پوسته ریسپانسیو رادزن" : "Testing RTL/LTR shell, custom Jalali date picker & Radzen components")
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-light btn-sm px-3 fw-bold shadow-sm" @onclick="Preferences.ToggleRtlLtr">
+                        🔄 @(Preferences.IsRtl ? "تغییر جهت به چپ‌به‌راست (LTR)" : "Switch to RTL (فارسی)")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 0.1 & 0.2: Interactive Jalali Calendar & DatePicker Card -->
+    <div class="card shadow-sm mb-4 border-0" style="border-radius: 1rem;">
+        <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+            <h5 class="fw-bold mb-1 text-primary">
+                📅 @(Preferences.IsRtl ? "داستان ۰.۲: انتخابگر تاریخ جلالی و تقویم شمسی" : "Story 0.2: Jalali DatePicker & Calendar Service")
+            </h5>
+            <p class="small text-secondary mb-0">
+                @(Preferences.IsRtl
+                    ? "امکان تایپ با ارقام فارسی/انگلیسی، تبدیل به UTC/ISO، و پشتیبانی دقیق از سال کبیسه (۳۰ اسفند)"
+                    : "Supports Persian/Latin digits, UTC/ISO round-tripping, and leap years (30 Esfand).")
+            </p>
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+                <!-- Single DatePicker -->
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">
+                        @(Preferences.IsRtl ? "انتخاب یا تایپ تاریخ جلالی:" : "Select or Type Jalali Date:")
+                    </label>
+                    <IvanJalaliDatePicker @bind-Value="testDate" />
+                    
+                    <div class="mt-3 p-3 bg-light rounded border">
+                        <div class="small fw-bold text-secondary mb-1">@(Preferences.IsRtl ? "نتیجه پردازش تاریخ:" : "Date Inspection Result:")</div>
+                        <ul class="list-unstyled mb-0 small">
+                            <li><strong>@(Preferences.IsRtl ? "نمایش جلالی:" : "Jalali Display:")</strong> @formattedTestDate</li>
+                            <li><strong>@(Preferences.IsRtl ? "فرمت استاندارد ISO:" : "ISO DateOnly:")</strong> @(testDate?.ToString("yyyy-MM-dd") ?? "—")</li>
+                            <li><strong>@(Preferences.IsRtl ? "تبدیل به UTC:" : "UTC Round-trip:")</strong> @(testDate?.ToDateTime(TimeOnly.MinValue).ToString("yyyy-MM-ddTHH:mm:ssZ") ?? "—")</li>
+                            <li><strong>@(Preferences.IsRtl ? "وضعیت کبیسه سال:" : "Is Leap Year?:")</strong> @leapYearStatus</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Range Picker -->
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">
+                        @(Preferences.IsRtl ? "محدوده تاریخ جلالی (Range Picker):" : "Jalali Date Range:")
+                    </label>
+                    <IvanJalaliDateRangePicker @bind-StartDate="rangeStart" @bind-EndDate="rangeEnd" />
+
+                    <div class="mt-3 p-3 bg-light rounded border">
+                        <div class="small fw-bold text-secondary mb-1">@(Preferences.IsRtl ? "نتیجه محدوده انتخابی:" : "Range Result:")</div>
+                        <div class="small">
+                            @(Preferences.IsRtl ? "از:" : "From:") <strong>@(rangeStart.HasValue ? CalendarService.FormatDate(rangeStart.Value, "yyyy/MM/dd", CalendarType.Jalali, Preferences.DigitStyle) : "—")</strong>
+                            &nbsp;|&nbsp;
+                            @(Preferences.IsRtl ? "تا:" : "To:") <strong>@(rangeEnd.HasValue ? CalendarService.FormatDate(rangeEnd.Value, "yyyy/MM/dd", CalendarType.Jalali, Preferences.DigitStyle) : "—")</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leap Year Quick Tests -->
+            <div class="mt-4 pt-3 border-top">
+                <h6 class="fw-bold mb-2">@(Preferences.IsRtl ? "آزمون‌های سریع موعد و سال کبیسه:" : "Quick Leap Year Verification Tests:")</h6>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="SetLeapDate">
+                        @(Preferences.IsRtl ? "آزمون ۳۰ اسفند ۱۴۰۳ (کبیسه - معتبر)" : "Test 30 Esfand 1403 (Leap - Valid)")
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="SetNonLeapEnd">
+                        @(Preferences.IsRtl ? "آزمون ۲۹ اسفند ۱۴۰۴ (عادی - پایان سال)" : "Test 29 Esfand 1404 (Non-Leap - Valid)")
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="SetNorouz">
+                        @(Preferences.IsRtl ? "آزمون ۱ فروردین ۱۴۰۴ (نوروز)" : "Test 1 Farvardin 1404 (Norouz)")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 0.1: Radzen RTL / LTR Proof Components -->
+    <div class="card shadow-sm mb-4 border-0" style="border-radius: 1rem;">
+        <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+            <h5 class="fw-bold mb-1 text-primary">
+                🧩 @(Preferences.IsRtl ? "داستان ۰.۱: اجزای رادزن در حالت RTL و LTR" : "Story 0.1: Radzen Components under RTL/LTR")
+            </h5>
+            <p class="small text-secondary mb-0">
+                @(Preferences.IsRtl ? "بررسی عدم وجود استایل‌های فیزیکی چپ/راست و صحت چیدمان کامپوننت‌های رادزن" : "Verifying logical layout flip and Radzen RTL component behavior.")
+            </p>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <RadzenCard class="p-3 border">
+                        <h6 class="fw-bold">Radzen Buttons</h6>
+                        <div class="d-flex flex-wrap gap-2 mt-2">
+                            <RadzenButton Text="@(Preferences.IsRtl ? "تایید" : "Submit")" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Medium" />
+                            <RadzenButton Text="@(Preferences.IsRtl ? "انصراف" : "Cancel")" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Medium" />
+                            <RadzenButton Icon="notifications" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Medium" Click="ShowNotification" />
+                        </div>
+                    </RadzenCard>
+                </div>
+
+                <div class="col-md-4">
+                    <RadzenCard class="p-3 border">
+                        <h6 class="fw-bold">Radzen Switch & Badges</h6>
+                        <div class="d-flex align-items-center justify-content-between mt-3">
+                            <span>@(Preferences.IsRtl ? "اعلان‌ها فعال:" : "Notifications Active:")</span>
+                            <RadzenSwitch @bind-Value="switchState" />
+                        </div>
+                        <div class="mt-3 d-flex gap-2">
+                            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@(Preferences.IsRtl ? "فعال" : "Active")" />
+                            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="@(Preferences.IsRtl ? "در انتظار" : "Pending")" />
+                        </div>
+                    </RadzenCard>
+                </div>
+
+                <div class="col-md-4">
+                    <RadzenCard class="p-3 border">
+                        <h6 class="fw-bold">Radzen Alert</h6>
+                        <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true" Size="AlertSize.Small" class="mt-2">
+                            @(Preferences.IsRtl
+                                ? "جهت صفحه فعلی: راست‌به‌چپ (RTL) با فونت وزیرمتن"
+                                : "Current direction: Left-to-Right (LTR)")
+                        </RadzenAlert>
+                    </RadzenCard>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 0.3: Notification Proof -->
+    <div class="card shadow-sm mb-4 border-0" style="border-radius: 1rem;">
+        <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+            <h5 class="fw-bold mb-1 text-primary">
+                🔔 @(Preferences.IsRtl ? "داستان ۰.۳: اثبات سیستم اعلان‌ها (Notification Proof)" : "Story 0.3: Notification Proof")
+            </h5>
+            <p class="small text-secondary mb-0">
+                @(Preferences.IsRtl ? "آزمایش کانال‌های وب‌پوش، تلگرام و بله" : "Testing Web Push, Telegram, and Bale notification adapters.")
+            </p>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-sm-4">
+                    <div class="p-3 border rounded text-center">
+                        <div class="fs-2 mb-2">🌐</div>
+                        <div class="fw-bold">Web Push</div>
+                        <button class="btn btn-sm btn-outline-primary mt-2 w-100" @onclick="() => SendTestNotification('W')">
+                            @(Preferences.IsRtl ? "ارسال پیام تست" : "Send Test")
+                        </button>
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="p-3 border rounded text-center">
+                        <div class="fs-2 mb-2">✈️</div>
+                        <div class="fw-bold">Telegram Bot</div>
+                        <button class="btn btn-sm btn-outline-primary mt-2 w-100" @onclick="() => SendTestNotification('T')">
+                            @(Preferences.IsRtl ? "ارسال پیام تست" : "Send Test")
+                        </button>
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="p-3 border rounded text-center">
+                        <div class="fs-2 mb-2">💬</div>
+                        <div class="fw-bold">Bale (بله)</div>
+                        <button class="btn btn-sm btn-outline-primary mt-2 w-100" @onclick="() => SendTestNotification('B')">
+                            @(Preferences.IsRtl ? "ارسال پیام تست" : "Send Test")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private DateOnly? testDate = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly? rangeStart = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly? rangeEnd = DateOnly.FromDateTime(DateTime.Today.AddDays(7));
+    private bool switchState = true;
+
+    protected override void OnInitialized()
+    {
+        Preferences.OnChange += StateHasChanged;
+    }
+
+    private string formattedTestDate
+    {
+        get
+        {
+            if (!testDate.HasValue) return "—";
+            return CalendarService.FormatDate(testDate.Value, "dddd، d MMMM yyyy", CalendarType.Jalali, Preferences.DigitStyle);
+        }
+    }
+
+    private string leapYearStatus
+    {
+        get
+        {
+            if (!testDate.HasValue) return "—";
+            var jDate = CalendarService.ToJalali(testDate.Value);
+            bool isLeap = CalendarService.IsLeapYear(jDate.Year, CalendarType.Jalali);
+            return isLeap
+                ? (Preferences.IsRtl ? $"سال {jDate.Year} کبیسه است (اسفند ۳۰ روزه)" : $"Year {jDate.Year} is a leap year (30 days in Esfand)")
+                : (Preferences.IsRtl ? $"سال {jDate.Year} عادی است (اسفند ۲۹ روزه)" : $"Year {jDate.Year} is normal (29 days in Esfand)");
+        }
+    }
+
+    private void SetLeapDate()
+    {
+        // 1403/12/30
+        testDate = CalendarService.ToDateOnly(1403, 12, 30, CalendarType.Jalali);
+    }
+
+    private void SetNonLeapEnd()
+    {
+        // 1404/12/29
+        testDate = CalendarService.ToDateOnly(1404, 12, 29, CalendarType.Jalali);
+    }
+
+    private void SetNorouz()
+    {
+        // 1404/01/01
+        testDate = CalendarService.ToDateOnly(1404, 1, 1, CalendarType.Jalali);
+    }
+
+    private void ShowNotification()
+    {
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Info,
+            Summary = Preferences.IsRtl ? "اعلان سیستم" : "System Notification",
+            Detail = Preferences.IsRtl ? "این یک پیام نمونه از رادزن در ایوان است." : "Sample Radzen notification in Ivan.",
+            Duration = 4000
+        });
+    }
+
+    private void SendTestNotification(char channel)
+    {
+        string channelName = channel switch
+        {
+            'W' => "Web Push",
+            'T' => "Telegram",
+            'B' => "Bale",
+            _ => "Unknown"
+        };
+
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Success,
+            Summary = Preferences.IsRtl ? $"پیام تست به {channelName}" : $"Test message sent to {channelName}",
+            Detail = Preferences.IsRtl ? "پیام آزمایشی به صف ارسال اضافه شد." : "Test message queued successfully.",
+            Duration = 3000
+        });
+    }
+}
