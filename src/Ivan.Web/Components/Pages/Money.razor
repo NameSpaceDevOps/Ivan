@@ -1,0 +1,514 @@
+@page "/money"
+@rendermode InteractiveServer
+@inject IFinanceService FinanceService
+@inject ILedgerService LedgerService
+@inject IChartOfAccountsSeeder Seeder
+@inject ICurrentUserContext UserContext
+@inject ICalendarService CalendarService
+@inject UserPreferencesState Preferences
+
+<PageTitle>@(Preferences.IsRtl ? "مالی و حسابداری دوبل — ایوان" : "Finance & Ledger — Ivan")</PageTitle>
+
+<div class="container-fluid p-0">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="mb-1">@(Preferences.IsRtl ? "مدیریت مالی و دفتر کل" : "Finance & Double-Entry Ledger")</h4>
+            <p class="text-secondary small mb-0">@(Preferences.IsRtl ? "حسابداری خانواده، درآمدها، هزینه‌ها، چک‌ها، وام‌ها و بودجه‌بندی" : "Family accounts, income, expenses, cheques, loans and budgets")</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-sm d-flex align-items-center gap-1" @onclick="OpenExpenseModal">
+                <span>-</span>
+                <span>@(Preferences.IsRtl ? "ثبت هزینه" : "Add Expense")</span>
+            </button>
+            <button class="btn btn-success btn-sm d-flex align-items-center gap-1" @onclick="OpenIncomeModal">
+                <span>+</span>
+                <span>@(Preferences.IsRtl ? "ثبت درآمد" : "Add Income")</span>
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">@(Preferences.IsRtl ? "در حال بارگذاری اطلاعات مالی..." : "Loading finance...")</p>
+        </div>
+    }
+    else if (!accounts.Any())
+    {
+        <!-- Empty State: Seed chart -->
+        <div class="card border-0 shadow-sm text-center py-5">
+            <span style="font-size: 3rem;">💳</span>
+            <h5 class="mt-3">@(Preferences.IsRtl ? "سرفصل حساب‌ها هنوز تعریف نشده است" : "Chart of Accounts not initialized")</h5>
+            <p class="text-muted small">@(Preferences.IsRtl ? "می‌توانید سرفصل استاندارد حساب‌های خانوادگی را با یک کلیک راه‌اندازی کنید." : "Initialize standard family chart of accounts with one click.")</p>
+            <div class="mt-3">
+                <button class="btn btn-primary" @onclick="SeedChart">
+                    @(Preferences.IsRtl ? "راه‌اندازی سرفصل استاندارد (پیش‌فرض ایوان)" : "Initialize Standard Chart")
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- KPI Cards Row -->
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3">
+                    <small class="text-muted">@(Preferences.IsRtl ? "دارایی خالص (Net Worth)" : "Net Worth")</small>
+                    <div class="fs-5 fw-bold @(netWorthReport.NetWorth >= 0 ? "text-primary" : "text-danger")">
+                        @FormatMoney(netWorthReport.NetWorth)
+                    </div>
+                    <small class="text-secondary" style="font-size: 0.75rem;">
+                        @(Preferences.IsRtl ? "کل دارایی منهای بدهی‌ها" : "Assets minus liabilities")
+                    </small>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3">
+                    <small class="text-muted">@(Preferences.IsRtl ? "درآمد این ماه" : "Monthly Income")</small>
+                    <div class="fs-5 fw-bold text-success">
+                        @FormatMoney(monthlySummary.TotalIncome)
+                    </div>
+                    <small class="text-secondary" style="font-size: 0.75rem;">
+                        @(monthlySummary.Year)/@(monthlySummary.Month.ToString("D2"))
+                    </small>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3">
+                    <small class="text-muted">@(Preferences.IsRtl ? "هزینه‌های این ماه" : "Monthly Expense")</small>
+                    <div class="fs-5 fw-bold text-danger">
+                        @FormatMoney(monthlySummary.TotalExpense)
+                    </div>
+                    <small class="text-secondary" style="font-size: 0.75rem;">
+                        @(monthlySummary.SavingsRatePercent)% @(Preferences.IsRtl ? "نرخ پس‌انداز" : "savings rate")
+                    </small>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3">
+                    <small class="text-muted">@(Preferences.IsRtl ? "پس‌انداز خالص ماه" : "Net Savings")</small>
+                    <div class="fs-5 fw-bold @(monthlySummary.NetSavings >= 0 ? "text-success" : "text-danger")">
+                        @FormatMoney(monthlySummary.NetSavings)
+                    </div>
+                    <small class="text-secondary" style="font-size: 0.75rem;">
+                        @(Preferences.IsRtl ? "تراز عملکرد ماهانه" : "Monthly balance")
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-pills mb-3">
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "transactions" ? "active" : "")" @onclick='() => activeTab = "transactions"'>
+                    📝 @(Preferences.IsRtl ? "تراکنش‌ها و اسناد" : "Transactions")
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "accounts" ? "active" : "")" @onclick='() => activeTab = "accounts"'>
+                    🏦 @(Preferences.IsRtl ? "سرفصل حساب‌ها" : "Accounts") (@accounts.Count(a => !a.IsGroup))
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "cheques" ? "active" : "")" @onclick='() => activeTab = "cheques"'>
+                    🧾 @(Preferences.IsRtl ? "چک‌ها" : "Cheques") (@cheques.Count)
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "loans" ? "active" : "")" @onclick='() => activeTab = "loans"'>
+                    🤝 @(Preferences.IsRtl ? "وام‌ها و اقساط" : "Loans & Installments") (@loans.Count)
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "budget" ? "active" : "")" @onclick='() => activeTab = "budget"'>
+                    📊 @(Preferences.IsRtl ? "بودجه‌بندی" : "Budgets")
+                </button>
+            </li>
+        </ul>
+
+        @if (activeTab == "transactions")
+        {
+            <!-- Transactions / Journal Entries Table -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">@(Preferences.IsRtl ? "اسناد حسابداری دوبل (دفتر روزنامه)" : "General Journal Entries")</span>
+                </div>
+                <div class="list-group list-group-flush">
+                    @if (!entries.Any())
+                    {
+                        <div class="text-center py-4 text-muted">
+                            @(Preferences.IsRtl ? "هنوز هیچ سندی ثبت نشده است" : "No journal entries yet")
+                        </div>
+                    }
+                    @foreach (var entry in entries)
+                    {
+                        <div class="list-group-item py-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div>
+                                    <span class="fw-bold">@entry.Description</span>
+                                    @if (!string.IsNullOrEmpty(entry.Reference))
+                                    {
+                                        <small class="badge bg-light text-dark ms-2">@entry.Reference</small>
+                                    }
+                                    @if (entry.Status == JournalEntryStatus.Voided)
+                                    {
+                                        <span class="badge bg-danger ms-2">@(Preferences.IsRtl ? "باطل‌شده" : "Voided")</span>
+                                    }
+                                </div>
+                                <div class="text-end">
+                                    <span class="fw-bold text-primary">@FormatMoney(entry.TotalAmount)</span>
+                                    <small class="d-block text-muted">
+                                        @CalendarService.FormatDate(entry.Date, "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- Lines details -->
+                            <div class="bg-light p-2 rounded small mt-2">
+                                @foreach (var line in entry.Lines)
+                                {
+                                    <div class="d-flex justify-content-between py-1 border-bottom-dashed">
+                                        <span>
+                                            <span class="fw-bold">@line.AccountCode</span> @line.AccountName
+                                            @if (!string.IsNullOrEmpty(line.Memo))
+                                            {
+                                                <small class="text-muted">(@line.Memo)</small>
+                                            }
+                                        </span>
+                                        <span>
+                                            @if (line.Debit > 0)
+                                            {
+                                                <span class="text-success">@(Preferences.IsRtl ? "بدهکار: " : "Dr: ") @FormatMoney(line.Debit)</span>
+                                            }
+                                            @if (line.Credit > 0)
+                                            {
+                                                <span class="text-danger ms-2">@(Preferences.IsRtl ? "بستانکار: " : "Cr: ") @FormatMoney(line.Credit)</span>
+                                            }
+                                        </span>
+                                    </div>
+                                }
+                            </div>
+
+                            @if (entry.Status == JournalEntryStatus.Posted && entry.SourceType != "Reversal")
+                            {
+                                <div class="text-end mt-2">
+                                    <button class="btn btn-outline-danger btn-sm py-0" style="font-size: 0.75rem;" @onclick="() => VoidEntry(entry.Id)">
+                                        @(Preferences.IsRtl ? "ابطال سند (برگشت حساب)" : "Void by Reversal")
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else if (activeTab == "accounts")
+        {
+            <!-- Accounts List with Balances -->
+            <div class="card border-0 shadow-sm">
+                <div class="list-group list-group-flush">
+                    @foreach (var acc in accounts)
+                    {
+                        <div class="list-group-item d-flex justify-content-between align-items-center py-2 @(acc.IsGroup ? "bg-light fw-bold" : "")">
+                            <div>
+                                <span class="badge @GetAccountTypeBadge(acc.Type)">@acc.Code</span>
+                                <span class="ms-2">@acc.PersianName</span>
+                                @if (acc.IsSystem)
+                                {
+                                    <span class="badge bg-secondary ms-1" style="font-size: 0.65rem;">System</span>
+                                }
+                            </div>
+                            <div class="text-end">
+                                @if (!acc.IsGroup)
+                                {
+                                    <span class="fw-bold @(acc.CurrentBalance < 0 ? "text-danger" : "text-dark")">
+                                        @FormatMoney(acc.CurrentBalance)
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else if (activeTab == "cheques")
+        {
+            <!-- Cheques View -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">@(Preferences.IsRtl ? "مدیریت چک‌های صیادی و عادی" : "Cheques Management")</span>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="AddSampleCheque">+ @(Preferences.IsRtl ? "ثبت چک" : "New Cheque")</button>
+                </div>
+                <div class="list-group list-group-flush">
+                    @if (!cheques.Any())
+                    {
+                        <div class="text-center py-4 text-muted">@(Preferences.IsRtl ? "هیچ چکی ثبت نشده است" : "No cheques recorded")</div>
+                    }
+                    @foreach (var ch in cheques)
+                    {
+                        <div class="list-group-item d-flex justify-content-between align-items-center py-3">
+                            <div>
+                                <div class="fw-bold">
+                                    <span class="badge @(ch.Direction == ChequeDirection.Received ? "bg-success" : "bg-warning text-dark")">
+                                        @(ch.Direction == ChequeDirection.Received ? (Preferences.IsRtl ? "دریافتی" : "Received") : (Preferences.IsRtl ? "صادره" : "Issued"))
+                                    </span>
+                                    #@ch.Number (@ch.Bank)
+                                </div>
+                                <small class="text-muted">
+                                    @(Preferences.IsRtl ? "سررسید: " : "Due: ")
+                                    @CalendarService.FormatDate(ch.DueDate, "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-bold text-primary">@FormatMoney(ch.Amount)</div>
+                                <span class="badge @(ch.Status == ChequeStatus.Cleared ? "bg-success" : ch.Status == ChequeStatus.Bounced ? "bg-danger" : "bg-light text-dark")">
+                                    @ch.Status
+                                </span>
+                                @if (ch.Status == ChequeStatus.Pending)
+                                {
+                                    <button class="btn btn-sm btn-outline-success ms-2 py-0" @onclick="() => ClearCheque(ch.Id)">
+                                        ✓ @(Preferences.IsRtl ? "وصول" : "Clear")
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else if (activeTab == "loans")
+        {
+            <!-- Loans and Installments -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">@(Preferences.IsRtl ? "تسهیلات، وام‌ها و خرید اقساطی" : "Loans & Installments")</span>
+                </div>
+                <div class="list-group list-group-flush">
+                    @if (!loans.Any())
+                    {
+                        <div class="text-center py-4 text-muted">@(Preferences.IsRtl ? "هیچ وامی ثبت نشده است" : "No loans recorded")</div>
+                    }
+                    @foreach (var loan in loans)
+                    {
+                        <div class="list-group-item py-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                    <span class="badge bg-primary">@loan.Direction</span>
+                                    <span class="fw-bold ms-2">@FormatMoney(loan.Principal)</span>
+                                    <small class="text-muted ms-2">(@loan.PaidInstallmentCount / @loan.InstallmentCount @(Preferences.IsRtl ? "قسط پرداخت‌شده" : "paid"))</small>
+                                </div>
+                                <div class="text-end">
+                                    <small class="text-muted d-block">@(Preferences.IsRtl ? "مانده اقساط" : "Remaining")</small>
+                                    <span class="fw-bold text-danger">@FormatMoney(loan.RemainingBalance)</span>
+                                </div>
+                            </div>
+
+                            <!-- Installment pills -->
+                            <div class="d-flex gap-2 overflow-x-auto pb-2">
+                                @foreach (var inst in loan.Installments)
+                                {
+                                    <div class="p-2 border rounded text-center" style="min-width: 110px;">
+                                        <small class="text-muted d-block">#@inst.No</small>
+                                        <div class="fw-bold" style="font-size: 0.8rem;">@FormatMoney(inst.Amount)</div>
+                                        @if (inst.Status == InstallmentStatus.Paid)
+                                        {
+                                            <span class="badge bg-success" style="font-size: 0.65rem;">@(Preferences.IsRtl ? "پرداخت شد" : "Paid")</span>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary py-0 px-2 mt-1" style="font-size: 0.7rem;" @onclick="() => PayInstallment(inst.Id)">
+                                                @(Preferences.IsRtl ? "پرداخت" : "Pay")
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else if (activeTab == "budget")
+        {
+            <!-- Budget vs Actual -->
+            <div class="card border-0 shadow-sm p-3">
+                <h6 class="fw-bold mb-3">@(Preferences.IsRtl ? "بودجه در برابر هزینه واقعی این ماه" : "Budget vs Actual Progress")</h6>
+                @if (!budgetVsActual.Any())
+                {
+                    <p class="text-muted small">@(Preferences.IsRtl ? "هنوز بودجه‌ای برای این ماه ثبت نشده است." : "No budgets defined for this month.")</p>
+                }
+                @foreach (var b in budgetVsActual)
+                {
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="fw-bold">@b.AccountName</span>
+                            <span>@FormatMoney(b.ActualAmount) / @FormatMoney(b.BudgetAmount) (@b.UtilizationPercent%)</span>
+                        </div>
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar @(b.UtilizationPercent > 100 ? "bg-danger" : b.UtilizationPercent > 80 ? "bg-warning" : "bg-success")"
+                                 role="progressbar"
+                                 style="width: @(Math.Min(b.UtilizationPercent, 100))%"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private string activeTab = "transactions";
+
+    private List<AccountDto> accounts = new();
+    private List<JournalEntryDto> entries = new();
+    private List<ChequeDto> cheques = new();
+    private List<LoanDto> loans = new();
+    private List<BudgetVsActualItem> budgetVsActual = new();
+
+    private NetWorthReport netWorthReport = new(0, 0, 0);
+    private MonthlySummaryReport monthlySummary = new(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 0, 0, 0, 0);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var accs = await FinanceService.GetAccountsAsync(includeInactive: false);
+            accounts = accs.ToList();
+
+            if (accounts.Any())
+            {
+                var now = DateTime.UtcNow;
+                var ents = await LedgerService.GetEntriesAsync();
+                entries = ents.Take(25).ToList();
+
+                var chqs = await FinanceService.GetChequesAsync();
+                cheques = chqs.ToList();
+
+                var lns = await FinanceService.GetLoansAsync();
+                loans = lns.ToList();
+
+                netWorthReport = await FinanceService.GetNetWorthReportAsync();
+                monthlySummary = await FinanceService.GetMonthlySummaryAsync(now.Year, now.Month);
+
+                var bv = await FinanceService.GetBudgetVsActualAsync(now.Year, now.Month);
+                budgetVsActual = bv.ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SeedChart()
+    {
+        var householdId = UserContext.HouseholdId ?? Guid.NewGuid();
+        await Seeder.SeedAsync(householdId, ChartPreset.Full);
+        await LoadDataAsync();
+    }
+
+    private async Task OpenExpenseModal()
+    {
+        // Quick add sample expense
+        var expenseAcc = accounts.FirstOrDefault(a => a.Type == AccountType.Expense && !a.IsGroup);
+        var paymentAcc = accounts.FirstOrDefault(a => a.Type == AccountType.Asset && !a.IsGroup);
+
+        if (expenseAcc != null && paymentAcc != null)
+        {
+            await FinanceService.RecordExpenseAsync(new RecordExpenseRequest(
+                DateOnly.FromDateTime(DateTime.UtcNow),
+                450_000,
+                expenseAcc.Id,
+                paymentAcc.Id,
+                Preferences.IsRtl ? "خرید روزمره سوپرمارکت" : "Daily Supermarket"));
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task OpenIncomeModal()
+    {
+        var incomeAcc = accounts.FirstOrDefault(a => a.Type == AccountType.Income && !a.IsGroup);
+        var destAcc = accounts.FirstOrDefault(a => a.Type == AccountType.Asset && !a.IsGroup);
+
+        if (incomeAcc != null && destAcc != null)
+        {
+            await FinanceService.RecordIncomeAsync(new RecordIncomeRequest(
+                DateOnly.FromDateTime(DateTime.UtcNow),
+                25_000_000,
+                incomeAcc.Id,
+                destAcc.Id,
+                Preferences.IsRtl ? "واریز دستمزد پروژه‌ای" : "Freelance project payment"));
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task VoidEntry(Guid entryId)
+    {
+        await LedgerService.VoidEntryAsync(entryId, Preferences.IsRtl ? "ابطال توسط کاربر" : "Cancelled by user");
+        await LoadDataAsync();
+    }
+
+    private async Task ClearCheque(Guid chequeId)
+    {
+        var bank = accounts.FirstOrDefault(a => a.Code == "1011") ?? accounts.FirstOrDefault(a => a.Type == AccountType.Asset && !a.IsGroup);
+        if (bank != null)
+        {
+            await FinanceService.ClearChequeAsync(chequeId, bank.Id);
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task PayInstallment(Guid installmentId)
+    {
+        var bank = accounts.FirstOrDefault(a => a.Code == "1011") ?? accounts.FirstOrDefault(a => a.Type == AccountType.Asset && !a.IsGroup);
+        if (bank != null)
+        {
+            await FinanceService.PayInstallmentAsync(installmentId, bank.Id);
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task AddSampleCheque()
+    {
+        await FinanceService.CreateChequeAsync(new CreateChequeRequest(
+            ChequeDirection.Issued,
+            "100234",
+            "Mellat",
+            15_000_000,
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(14)),
+            SayadId: "1234567890123456"));
+        await LoadDataAsync();
+    }
+
+    private string FormatMoney(long minorUnits)
+    {
+        // Display in Toman (minorUnits / 10) or Rial per preference
+        long toman = minorUnits / 10;
+        return Preferences.IsRtl
+            ? $"{toman:N0} تومان"
+            : $"{minorUnits:N0} IRR";
+    }
+
+    private static string GetAccountTypeBadge(AccountType type) => type switch
+    {
+        AccountType.Asset => "bg-primary",
+        AccountType.Liability => "bg-danger",
+        AccountType.Equity => "bg-secondary",
+        AccountType.Income => "bg-success",
+        AccountType.Expense => "bg-warning text-dark",
+        _ => "bg-light text-dark"
+    };
+}

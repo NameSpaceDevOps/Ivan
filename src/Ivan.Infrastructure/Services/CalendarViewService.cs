@@ -193,6 +193,43 @@ public class CalendarViewService : ICalendarViewService
             }
         }
 
+        // 7. Cheques Due
+        var cheques = await _db.Cheques
+            .Where(c => c.Status == ChequeStatus.Pending && c.DueDate >= startDateOnly && c.DueDate <= endDateOnly)
+            .ToListAsync(ct);
+
+        foreach (var ch in cheques)
+        {
+            var due = new DateTimeOffset(ch.DueDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+            events.Add(new CalendarEventDto(
+                ch.Id,
+                CalendarItemType.ChequeDue,
+                $"Cheque: #{ch.Number} ({ch.Bank})",
+                due,
+                $"{ch.Amount:N0} {ch.Currency} ({ch.Direction})",
+                "/money",
+                "var(--rz-info)"));
+        }
+
+        // 8. Installments Due
+        var installments = await _db.Installments
+            .Include(i => i.Loan)
+            .Where(i => i.Status == InstallmentStatus.Pending && i.DueDate >= startDateOnly && i.DueDate <= endDateOnly)
+            .ToListAsync(ct);
+
+        foreach (var inst in installments)
+        {
+            var due = new DateTimeOffset(inst.DueDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+            events.Add(new CalendarEventDto(
+                inst.Id,
+                CalendarItemType.InstallmentDue,
+                $"Installment #{inst.No} ({inst.Loan?.Direction})",
+                due,
+                $"{inst.Amount:N0} {inst.Loan?.Currency}",
+                "/money",
+                "var(--rz-primary)"));
+        }
+
         return events.OrderBy(e => e.DueAt).ToList();
     }
 }

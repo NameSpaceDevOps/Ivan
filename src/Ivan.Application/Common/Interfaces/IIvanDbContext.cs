@@ -41,5 +41,16 @@ public interface IIvanDbContext
     DbSet<ImportantDate> ImportantDates { get; }
     DbSet<TimelineEvent> TimelineEvents { get; }
 
+    // Phase 4 Finance
+    DbSet<Account> Accounts { get; }
+    DbSet<JournalEntry> JournalEntries { get; }
+    DbSet<JournalLine> JournalLines { get; }
+    DbSet<Budget> Budgets { get; }
+    DbSet<RecurringTransaction> RecurringTransactions { get; }
+    DbSet<Cheque> Cheques { get; }
+    DbSet<Loan> Loans { get; }
+    DbSet<Installment> Installments { get; }
+    DbSet<BalanceCheck> BalanceChecks { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

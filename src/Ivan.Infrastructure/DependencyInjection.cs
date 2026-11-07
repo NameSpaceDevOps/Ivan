@@ -63,6 +63,11 @@ public static class DependencyInjection
         services.AddScoped<IPersonService, PersonService>();
         services.AddScoped<ICalendarViewService, CalendarViewService>();
 
+        // Phase 4 Finance
+        services.AddScoped<IChartOfAccountsSeeder, ChartOfAccountsSeeder>();
+        services.AddScoped<ILedgerService, LedgerService>();
+        services.AddScoped<IFinanceService, FinanceService>();
+
         return services;
     }
 }

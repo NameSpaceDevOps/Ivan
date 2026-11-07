@@ -59,6 +59,17 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
     public DbSet<ImportantDate> ImportantDates => Set<ImportantDate>();
     public DbSet<TimelineEvent> TimelineEvents => Set<TimelineEvent>();
 
+    // Phase 4 Finance
+    public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<JournalLine> JournalLines => Set<JournalLine>();
+    public DbSet<Budget> Budgets => Set<Budget>();
+    public DbSet<RecurringTransaction> RecurringTransactions => Set<RecurringTransaction>();
+    public DbSet<Cheque> Cheques => Set<Cheque>();
+    public DbSet<Loan> Loans => Set<Loan>();
+    public DbSet<Installment> Installments => Set<Installment>();
+    public DbSet<BalanceCheck> BalanceChecks => Set<BalanceCheck>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -99,7 +110,48 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
         builder.Entity<ImportantDate>().ToTable("ImportantDates");
         builder.Entity<TimelineEvent>().ToTable("TimelineEvents");
 
+        // Phase 4 Tables
+        builder.Entity<Account>().ToTable("Accounts");
+        builder.Entity<JournalEntry>().ToTable("JournalEntries");
+        builder.Entity<JournalLine>().ToTable("JournalLines");
+        builder.Entity<Budget>().ToTable("Budgets");
+        builder.Entity<RecurringTransaction>().ToTable("RecurringTransactions");
+        builder.Entity<Cheque>().ToTable("Cheques");
+        builder.Entity<Loan>().ToTable("Loans");
+        builder.Entity<Installment>().ToTable("Installments");
+        builder.Entity<BalanceCheck>().ToTable("BalanceChecks");
+
         // Relationships
+        builder.Entity<Account>()
+            .HasOne(a => a.ParentAccount)
+            .WithMany(a => a.ChildAccounts)
+            .HasForeignKey(a => a.ParentAccountId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<JournalEntry>()
+            .HasOne(je => je.ReversalOf)
+            .WithMany()
+            .HasForeignKey(je => je.ReversalOfId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<JournalLine>()
+            .HasOne(jl => jl.Entry)
+            .WithMany(je => je.Lines)
+            .HasForeignKey(jl => jl.EntryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<JournalLine>()
+            .HasOne(jl => jl.Account)
+            .WithMany(a => a.JournalLines)
+            .HasForeignKey(jl => jl.AccountId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<Installment>()
+            .HasOne(i => i.Loan)
+            .WithMany(l => l.Installments)
+            .HasForeignKey(i => i.LoanId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.Entity<PersonGuardian>()
             .HasOne(pg => pg.Person)
             .WithMany(p => p.Guardians)
@@ -141,6 +193,25 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
         builder.Entity<PersonDocument>().HasIndex(pd => new { pd.HouseholdId, pd.PersonId });
         builder.Entity<ImportantDate>().HasIndex(id => new { id.HouseholdId, id.Date });
         builder.Entity<TimelineEvent>().HasIndex(te => new { te.HouseholdId, te.SubjectType, te.SubjectId });
+
+        // Phase 4 Indexes
+        builder.Entity<Account>().HasIndex(a => new { a.HouseholdId, a.Code });
+        builder.Entity<Account>().HasIndex(a => new { a.HouseholdId, a.Type });
+        builder.Entity<Account>().HasIndex(a => new { a.HouseholdId, a.ParentAccountId });
+        builder.Entity<JournalEntry>().HasIndex(je => new { je.HouseholdId, je.Date });
+        builder.Entity<JournalEntry>().HasIndex(je => new { je.HouseholdId, je.Status });
+        builder.Entity<JournalEntry>().HasIndex(je => new { je.HouseholdId, je.SourceType, je.SourceId });
+        builder.Entity<JournalLine>().HasIndex(jl => new { jl.HouseholdId, jl.EntryId });
+        builder.Entity<JournalLine>().HasIndex(jl => new { jl.HouseholdId, jl.AccountId });
+        builder.Entity<JournalLine>().HasIndex(jl => new { jl.HouseholdId, jl.PropertyId });
+        builder.Entity<JournalLine>().HasIndex(jl => new { jl.HouseholdId, jl.PersonId });
+        builder.Entity<JournalLine>().HasIndex(jl => new { jl.HouseholdId, jl.AssetId });
+        builder.Entity<Budget>().HasIndex(b => new { b.HouseholdId, b.CategoryAccountId, b.StartsOn });
+        builder.Entity<Cheque>().HasIndex(c => new { c.HouseholdId, c.DueDate });
+        builder.Entity<Cheque>().HasIndex(c => new { c.HouseholdId, c.Status });
+        builder.Entity<Loan>().HasIndex(l => new { l.HouseholdId, l.StartDate });
+        builder.Entity<Installment>().HasIndex(i => new { i.HouseholdId, i.LoanId, i.DueDate });
+        builder.Entity<BalanceCheck>().HasIndex(bc => new { bc.HouseholdId, bc.AccountId, bc.Date });
 
         // AppUser & Household soft delete filters
         builder.Entity<AppUser>().HasQueryFilter(u => u.DeletedAt == null);

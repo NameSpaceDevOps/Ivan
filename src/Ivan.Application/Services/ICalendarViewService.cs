@@ -8,7 +8,9 @@ public enum CalendarItemType
     Birthday = 4,
     HealthDue = 5,
     DocumentExpiry = 6,
-    WarrantyExpiry = 7
+    WarrantyExpiry = 7,
+    ChequeDue = 8,
+    InstallmentDue = 9
 }
 
 public record CalendarEventDto(
