@@ -5,9 +5,9 @@ namespace Ivan.Domain.Entities;
 
 public class Asset : BaseTenantEntity
 {
-    public Guid PropertyId { get; set; }
+    public Guid? PropertyId { get; set; }
     public Guid? SpaceId { get; set; }
-    public Guid CategoryId { get; set; }
+    public Guid? CategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Brand { get; set; }
     public string? Model { get; set; }

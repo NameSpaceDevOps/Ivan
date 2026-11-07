@@ -5,9 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <Version>1.6.232.8</Version>
-    <AssemblyVersion>1.6.232.8</AssemblyVersion>
-    <FileVersion>1.6.232.8</FileVersion>
+    <Version>1.7.233.9</Version>
+    <AssemblyVersion>1.7.233.9</AssemblyVersion>
+    <FileVersion>1.7.233.9</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

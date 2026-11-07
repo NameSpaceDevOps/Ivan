@@ -1,350 +1,628 @@
 @page "/"
+@rendermode InteractiveServer
 @using Ivan.Application.Services
-@using Ivan.Domain.Common
 @using Ivan.Domain.Enums
 @using Ivan.Web.Components.Common
+@inject IDashboardService DashboardService
+@inject IChildrenService ChildrenService
+@inject IPersonService PersonService
 @inject ICalendarService CalendarService
-@inject ISetupWizardService SetupService
 @inject UserPreferencesState Preferences
 @inject NotificationService NotificationService
+@inject NavigationManager Navigation
+@implements IDisposable
 
-<PageTitle>@(Preferences.IsRtl ? "ایوان — داشبورد فاز ۰ و ۱" : "Ivan — Phase 0 & 1 Dashboard")</PageTitle>
+<PageTitle>@(Preferences.IsRtl ? "ایوان — داشبورد خانواده" : "Ivan — Family Dashboard")</PageTitle>
 
-<div class="container-fluid px-0">
-    <!-- Header banner -->
+<div class="container-fluid p-0">
+    <!-- Header Banner -->
     <div class="card mb-4 border-0 shadow-sm" style="border-radius: 1rem; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white;">
         <div class="card-body p-4">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div>
-                    <h2 class="fw-bold mb-1">
-                        @(Preferences.IsRtl ? "ایوان (Ivan) — فاز ۰ و فاز ۱ (Foundation)" : "Ivan — Phase 0 & Phase 1 Foundation")
-                    </h2>
-                    <p class="mb-0 opacity-75">
-                        @(Preferences.IsRtl ? "سیستم چندمستأجری خانوار، ایزولاسیون داده‌ها، تقویم شمسی جلالی و پوسته واکنش‌گرا" : "Multi-tenant household engine, data isolation, Jalali calendar & responsive shell")
+                    <h3 class="fw-bold mb-1">
+                        @(Preferences.IsRtl ? $"ایوان — خانه {parentData?.HouseholdName ?? "خانواده"}" : $"Ivan — {parentData?.HouseholdName ?? "Family"} Home")
+                    </h3>
+                    <p class="mb-0 opacity-75 small">
+                        @(Preferences.IsRtl ? "مدیریت جامع کارها، دارایی‌ها، مالی، سلامت، کتابخانه و بچه‌ها" : "Unified home management for tasks, assets, money, health, library & kids")
                     </p>
                 </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-light btn-sm px-3 fw-bold shadow-sm" @onclick="Preferences.ToggleRtlLtr">
-                        🔄 @(Preferences.IsRtl ? "تغییر جهت به چپ‌به‌راست (LTR)" : "Switch to RTL (فارسی)")
-                    </button>
+                <!-- Persona Badge & Switcher -->
+                <div class="d-flex align-items-center gap-2 bg-white bg-opacity-25 px-3 py-1 rounded-pill">
+                    <span class="small fw-semibold">@(Preferences.IsRtl ? "نمای جاری:" : "Current View:")</span>
+                    <span class="badge bg-light text-dark fw-bold">
+                        @(Preferences.ActivePersona switch
+                        {
+                            "Parent" => Preferences.IsRtl ? "والدین 👨‍👩‍👧‍👦" : "Parent 👨‍👩‍👧‍👦",
+                            "Teen" => Preferences.IsRtl ? "نوجوان 🎧" : "Teen 🎧",
+                            "Child" => Preferences.IsRtl ? "کودک 🎈" : "Child 🎈",
+                            _ => Preferences.ActivePersona
+                        })
+                    </span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Phase 1: Foundation Overview Card -->
-    <div class="card shadow-sm mb-4 border-0" style="border-radius: 1rem;">
-        <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-            <div class="d-flex align-items-center justify-content-between flex-wrap">
-                <div>
-                    <h5 class="fw-bold mb-1 text-primary">
-                        🏛️ @(Preferences.IsRtl ? "فاز ۱: هسته زیرساخت و دسترسی (Foundation)" : "Phase 1: Foundation & Access Engine")
-                    </h5>
-                    <p class="small text-secondary mb-0">
-                        @(Preferences.IsRtl
-                            ? "راه‌اندازی اولیه (Setup Wizard)، چندمستأجری خانوار، فیلترهای سراسری، دسترسی‌ها و حذف نرم"
-                            : "Setup Wizard, Multi-tenancy isolation filters, Access Grants & Soft Delete")
-                    </p>
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-secondary small mt-2">@(Preferences.IsRtl ? "در حال بارگذاری داشبورد..." : "Loading dashboard...")</p>
+        </div>
+    }
+    else if (Preferences.ActivePersona == "Parent")
+    {
+        <!-- ================= PARENT DASHBOARD ================= -->
+        <!-- Financial & Operational KPI Cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3 h-100 border-start border-4 border-primary">
+                    <div class="text-secondary small mb-1">💰 @(Preferences.IsRtl ? "دارایی خالص" : "Net Worth")</div>
+                    <div class="fs-4 fw-bold text-dark">
+                        @FormatCurrency(parentData?.NetWorth ?? 0)
+                    </div>
+                    <small class="text-muted">@(Preferences.IsRtl ? "تومان" : "Toman")</small>
                 </div>
-                <div class="mt-2 mt-sm-0">
-                    <a href="/setup" class="btn btn-sm btn-outline-primary fw-bold">
-                        ⚙️ @(Preferences.IsRtl ? "ویزارد راه‌اندازی (Setup)" : "Setup Wizard")
+            </div>
+
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3 h-100 border-start border-4 border-success">
+                    <div class="text-secondary small mb-1">💵 @(Preferences.IsRtl ? "موجودی نقد و بانک" : "Cash & Bank")</div>
+                    <div class="fs-4 fw-bold text-success">
+                        @FormatCurrency(parentData?.TotalCash ?? 0)
+                    </div>
+                    <small class="text-muted">@(Preferences.IsRtl ? "تومان" : "Toman")</small>
+                </div>
+            </div>
+
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3 h-100 border-start border-4 border-warning">
+                    <div class="text-secondary small mb-1">⏳ @(Preferences.IsRtl ? "تأییدیه‌های باز بچه‌ها" : "Pending Approvals")</div>
+                    <div class="fs-4 fw-bold text-warning">
+                        @FormatNumber((parentData?.PendingRoutineApprovals ?? 0) + (parentData?.PendingRewardRedemptions ?? 0) + (parentData?.PendingWalletRequests ?? 0))
+                    </div>
+                    <small class="text-muted">@(Preferences.IsRtl ? "روتین، جایزه، کیف‌پول" : "Routines, rewards, wallet")</small>
+                </div>
+            </div>
+
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3 h-100 border-start border-4 border-danger">
+                    <div class="text-secondary small mb-1">⚠️ @(Preferences.IsRtl ? "کارهای معوقه" : "Overdue Tasks")</div>
+                    <div class="fs-4 fw-bold text-danger">
+                        @FormatNumber(parentData?.OverdueTasksCount ?? 0)
+                    </div>
+                    <small class="text-muted">@(Preferences.IsRtl ? "نیازمند اقدام فوری" : "Requires attention")</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Action Shortcuts -->
+        <div class="card border-0 shadow-sm p-3 mb-4 bg-light">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <span class="fw-bold small text-secondary">🚀 @(Preferences.IsRtl ? "دسترسی سریع:" : "Quick Actions:")</span>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="/tasks" class="btn btn-sm btn-white bg-white border shadow-sm">✓ @(Preferences.IsRtl ? "وظایف" : "Tasks")</a>
+                    <a href="/money" class="btn btn-sm btn-white bg-white border shadow-sm">💳 @(Preferences.IsRtl ? "امور مالی" : "Money")</a>
+                    <a href="/assets" class="btn btn-sm btn-white bg-white border shadow-sm">📦 @(Preferences.IsRtl ? "اموال و نگهداری" : "Assets")</a>
+                    <a href="/kids" class="btn btn-sm btn-white bg-white border shadow-sm">🧒 @(Preferences.IsRtl ? "بچه‌ها" : "Kids")</a>
+                    <a href="/library" class="btn btn-sm btn-white bg-white border shadow-sm">📚 @(Preferences.IsRtl ? "کتاب و فیلم" : "Library")</a>
+                    <a href="/settings" class="btn btn-sm btn-white bg-white border shadow-sm">💾 @(Preferences.IsRtl ? "پشتیبان‌گیری" : "Backups")</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section: Due Soon (Next 7 Days) and Expiring Soon (Next 30 Days) -->
+        <div class="row g-4">
+            <!-- Due Soon -->
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm h-100 p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="fw-bold mb-0 text-dark">
+                            ⏰ @(Preferences.IsRtl ? "سررسیدهای ۷ روز آینده" : "Due Soon (Next 7 Days)")
+                        </h6>
+                        <span class="badge bg-primary-subtle text-primary border border-primary">
+                            @FormatNumber(parentData?.DueSoonItems.Count ?? 0)
+                        </span>
+                    </div>
+
+                    @if (parentData?.DueSoonItems.Count == 0)
+                    {
+                        <div class="alert alert-light text-center border p-4 text-muted small my-auto">
+                            🎉 @(Preferences.IsRtl ? "هیچ سررسیدی برای ۷ روز آینده وجود ندارد!" : "Nothing due in the next 7 days.")
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var item in parentData!.DueSoonItems)
+                            {
+                                <a href="@item.Url" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center px-2 py-2">
+                                    <div>
+                                        <div class="fw-bold small text-dark">@item.Title</div>
+                                        @if (!string.IsNullOrEmpty(item.Details))
+                                        {
+                                            <small class="text-secondary d-block">@item.Details</small>
+                                        }
+                                        <small class="text-muted" style="font-size: 0.75rem;">
+                                            @CalendarService.FormatDate(DateOnly.FromDateTime(item.DueAt.LocalDateTime), "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                        </small>
+                                    </div>
+                                    <span class="badge bg-@(item.Severity == "danger" ? "danger" : item.Severity == "warning" ? "warning text-dark" : "info text-dark")">
+                                        @item.Module
+                                    </span>
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Expiring Soon -->
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm h-100 p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="fw-bold mb-0 text-dark">
+                            🛡️ @(Preferences.IsRtl ? "انقضاهای ۳۰ روز آینده (مدارک و گارانتی‌ها)" : "Expiring Soon (Next 30 Days)")
+                        </h6>
+                        <span class="badge bg-danger-subtle text-danger border border-danger">
+                            @FormatNumber(parentData?.ExpiringItems.Count ?? 0)
+                        </span>
+                    </div>
+
+                    @if (parentData?.ExpiringItems.Count == 0)
+                    {
+                        <div class="alert alert-light text-center border p-4 text-muted small my-auto">
+                            ✓ @(Preferences.IsRtl ? "هیچ مدرک یا گارانتی منقضی‌شونده‌ای در ۳۰ روز آتی ثبت نشده است." : "No documents or warranties expiring in the next 30 days.")
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var exp in parentData!.ExpiringItems)
+                            {
+                                <a href="@exp.Url" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center px-2 py-2">
+                                    <div>
+                                        <div class="fw-bold small text-dark">@exp.Title</div>
+                                        @if (!string.IsNullOrEmpty(exp.Details))
+                                        {
+                                            <small class="text-secondary d-block">@exp.Details</small>
+                                        }
+                                        <small class="text-danger fw-semibold" style="font-size: 0.75rem;">
+                                            @(Preferences.IsRtl ? "موعد انقضا:" : "Expires:")
+                                            @CalendarService.FormatDate(DateOnly.FromDateTime(exp.DueAt.LocalDateTime), "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                        </small>
+                                    </div>
+                                    <span class="badge bg-light text-danger border border-danger">@exp.Module</span>
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else if (Preferences.ActivePersona == "Teen")
+    {
+        <!-- ================= TEEN DASHBOARD ================= -->
+        <!-- Teen selector if available -->
+        @if (familyMembers.Count > 1)
+        {
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <label class="small fw-bold">@(Preferences.IsRtl ? "انتخاب پروفایل:" : "Select Profile:")</label>
+                <select class="form-select form-select-sm w-auto" value="@selectedPersonId" @onchange="OnPersonSelected">
+                    @foreach (var m in familyMembers)
+                    {
+                        <option value="@m.Id">@m.DisplayName</option>
+                    }
+                </select>
+            </div>
+        }
+
+        <!-- Teen KPIs -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3 h-100 border-start border-4 border-info">
+                    <div class="text-secondary small mb-1">💳 @(Preferences.IsRtl ? "موجودی کیف پول من" : "My Wallet")</div>
+                    <div class="fs-4 fw-bold text-dark">@FormatCurrency(teenData?.WalletBalance ?? 0)</div>
+                    <small class="text-muted">@(Preferences.IsRtl ? "تومان" : "Toman")</small>
+                </div>
+            </div>
+
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3 h-100 border-start border-4 border-success">
+                    <div class="text-secondary small mb-1">🎯 @(Preferences.IsRtl ? "پیشرفت هدف پس‌انداز" : "Savings Goal")</div>
+                    <div class="fs-4 fw-bold text-success">@FormatNumber((long)(teenData?.SavingsGoalProgress ?? 0))%</div>
+                    <div class="progress mt-2" style="height: 6px;">
+                        <div class="progress-bar bg-success" style="width: @Math.Min(100, (teenData?.SavingsGoalProgress ?? 0))%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3 h-100 border-start border-4 border-warning">
+                    <div class="text-secondary small mb-1">📝 @(Preferences.IsRtl ? "تکالیف در دست اقدام" : "Homework")</div>
+                    <div class="fs-4 fw-bold text-warning">@FormatNumber(teenData?.PendingHomeworkCount ?? 0)</div>
+                    <small class="text-muted">@(Preferences.IsRtl ? "درس‌های مدرسه" : "School assignments")</small>
+                </div>
+            </div>
+
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm p-3 h-100 border-start border-4 border-primary">
+                    <div class="text-secondary small mb-1">🔄 @(Preferences.IsRtl ? "روتین‌های امروز" : "Today's Routines")</div>
+                    <div class="fs-4 fw-bold text-primary">
+                        @FormatNumber(teenData?.TodayCompletedRoutines ?? 0) / @FormatNumber(teenData?.TodayRoutinesCount ?? 0)
+                    </div>
+                    <small class="text-muted">@(Preferences.IsRtl ? "تکمیل شده" : "Completed")</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Next to watch episode banner -->
+        @if (!string.IsNullOrEmpty(teenData?.NextWatchMediaTitle))
+        {
+            <div class="card border-0 shadow-sm p-3 mb-4 bg-light border-start border-4 border-info">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div>
+                        <span class="badge bg-primary mb-1">🎬 @(Preferences.IsRtl ? "بعدش چی ببینم؟" : "Next to Watch")</span>
+                        <h6 class="fw-bold mb-0 text-dark">@teenData.NextWatchMediaTitle</h6>
+                        <small class="text-secondary">@teenData.NextWatchEpisodeInfo</small>
+                    </div>
+                    <a href="/library" class="btn btn-outline-primary btn-sm fw-bold">
+                        ▶ @(Preferences.IsRtl ? "مشاهده در ماژول مدیا" : "Open in Media")
                     </a>
                 </div>
             </div>
-        </div>
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-md-3 col-sm-6">
-                    <div class="p-3 bg-light rounded border text-center">
-                        <div class="fs-3 mb-1">🧙‍♂️</div>
-                        <div class="fw-bold small">@(Preferences.IsRtl ? "داستان ۱.۱: ویزارد اولیه" : "Story 1.1: Setup Wizard")</div>
-                        <div class="mt-2">
-                            @if (isSetupCompleted)
+        }
+
+        <!-- Routines checklist & My dues -->
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm h-100 p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="fw-bold mb-0">✓ @(Preferences.IsRtl ? "چک‌لیست روتین‌های روزانه من" : "My Daily Routines")</h6>
+                        <span class="badge bg-light text-dark border">
+                            @FormatNumber(todayRoutinesList.Count(r => r.IsCompletedToday)) / @FormatNumber(todayRoutinesList.Count)
+                        </span>
+                    </div>
+
+                    @if (todayRoutinesList.Count == 0)
+                    {
+                        <div class="alert alert-light text-center border p-4 text-muted small my-auto">
+                            @(Preferences.IsRtl ? "هیچ روتینی برای امروز تنظیم نشده است." : "No routines scheduled for today.")
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var r in todayRoutinesList)
                             {
-                                <span class="badge bg-success">@(Preferences.IsRtl ? "تکمیل شده" : "Completed")</span>
+                                <div class="list-group-item d-flex justify-content-between align-items-center px-2 py-3">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="fs-5">@(r.IsCompletedToday ? "✅" : "⭕")</span>
+                                        <div>
+                                            <div class="fw-bold small @(r.IsCompletedToday ? "text-decoration-line-through text-muted" : "text-dark")">@r.Title</div>
+                                            <small class="text-secondary">⭐ +@FormatNumber(r.Points) @(Preferences.IsRtl ? "امتیاز" : "pts")</small>
+                                        </div>
+                                    </div>
+                                    @if (!r.IsCompletedToday)
+                                    {
+                                        <button class="btn btn-sm btn-outline-success fw-bold" @onclick="() => CompleteRoutineAsync(r.Id)">
+                                            ✓ @(Preferences.IsRtl ? "انجام شد" : "Done")
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success">
+                                            @(Preferences.IsRtl ? "ثبت شد" : "Completed")
+                                        </span>
+                                    }
+                                </div>
                             }
-                            else
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm h-100 p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="fw-bold mb-0">📅 @(Preferences.IsRtl ? "تکالیف و موعدهای نزدیک من" : "Upcoming Deadlines")</h6>
+                        <span class="badge bg-warning-subtle text-warning border border-warning">
+                            @FormatNumber(teenData?.MyDueItems.Count ?? 0)
+                        </span>
+                    </div>
+
+                    @if (teenData?.MyDueItems.Count == 0)
+                    {
+                        <div class="alert alert-light text-center border p-4 text-muted small my-auto">
+                            🎉 @(Preferences.IsRtl ? "تمام تکالیف انجام شده و موعد نزدیکی نداری!" : "All caught up! No upcoming deadlines.")
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var d in teenData!.MyDueItems)
                             {
-                                <span class="badge bg-warning text-dark">@(Preferences.IsRtl ? "نیاز به راه‌اندازی" : "Pending Setup")</span>
+                                <div class="list-group-item d-flex justify-content-between align-items-center px-2 py-2">
+                                    <div>
+                                        <div class="fw-bold small text-dark">@d.Title</div>
+                                        @if (!string.IsNullOrEmpty(d.Details))
+                                        {
+                                            <small class="text-secondary d-block">@d.Details</small>
+                                        }
+                                        <small class="text-muted" style="font-size: 0.75rem;">
+                                            @CalendarService.FormatDate(DateOnly.FromDateTime(d.DueAt.LocalDateTime), "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                        </small>
+                                    </div>
+                                    <span class="badge bg-light text-dark border">@d.Module</span>
+                                </div>
                             }
                         </div>
-                    </div>
-                </div>
-
-                <div class="col-md-3 col-sm-6">
-                    <div class="p-3 bg-light rounded border text-center">
-                        <div class="fs-3 mb-1">🛡️</div>
-                        <div class="fw-bold small">@(Preferences.IsRtl ? "داستان ۱.۳: ایزولاسیون خانوار" : "Story 1.3: Tenancy Isolation")</div>
-                        <div class="mt-2">
-                            <span class="badge bg-primary">@(Preferences.IsRtl ? "فیلتر سراسری فعال" : "Global Filters Active")</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-3 col-sm-6">
-                    <div class="p-3 bg-light rounded border text-center">
-                        <div class="fs-3 mb-1">🏢</div>
-                        <div class="fw-bold small">@(Preferences.IsRtl ? "داستان ۱.۵: املاک و فضاها" : "Story 1.5: Properties & Spaces")</div>
-                        <div class="mt-2">
-                            <span class="badge bg-info text-dark">@(Preferences.IsRtl ? "سرویس فعال" : "Service Ready")</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-3 col-sm-6">
-                    <div class="p-3 bg-light rounded border text-center">
-                        <div class="fs-3 mb-1">♻️</div>
-                        <div class="fw-bold small">@(Preferences.IsRtl ? "داستان ۱.۸: حذف نرم ۳۰ روزه" : "Story 1.8: Soft Delete")</div>
-                        <div class="mt-2">
-                            <span class="badge bg-secondary">@(Preferences.IsRtl ? "ردیابی و لاگ فعال" : "Audit & Retention Active")</span>
-                        </div>
-                    </div>
+                    }
                 </div>
             </div>
         </div>
-    </div>
+    }
+    else if (Preferences.ActivePersona == "Child")
+    {
+        <!-- ================= CHILD DASHBOARD ================= -->
+        <!-- Child selector if available -->
+        @if (familyMembers.Count > 1)
+        {
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <label class="small fw-bold">@(Preferences.IsRtl ? "انتخاب کودک:" : "Select Child:")</label>
+                <select class="form-select form-select-sm w-auto" value="@selectedPersonId" @onchange="OnPersonSelected">
+                    @foreach (var m in familyMembers)
+                    {
+                        <option value="@m.Id">@m.DisplayName</option>
+                    }
+                </select>
+            </div>
+        }
 
-    <!-- Phase 0.1 & 0.2: Interactive Jalali Calendar & DatePicker Card -->
-    <div class="card shadow-sm mb-4 border-0" style="border-radius: 1rem;">
-        <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-            <h5 class="fw-bold mb-1 text-primary">
-                📅 @(Preferences.IsRtl ? "داستان ۰.۲: انتخابگر تاریخ جلالی و تقوim شمسی" : "Story 0.2: Jalali DatePicker & Calendar Service")
-            </h5>
-            <p class="small text-secondary mb-0">
-                @(Preferences.IsRtl
-                    ? "امکان تایپ با ارقام فارسی/انگلیسی، تبدیل به UTC/ISO، و پشتیبانی دقیق از سال کبیسه (۳۰ اسفند)"
-                    : "Supports Persian/Latin digits, UTC/ISO round-tripping, and leap years (30 Esfand).")
-            </p>
-        </div>
-        <div class="card-body">
-            <div class="row g-4">
-                <!-- Single DatePicker -->
-                <div class="col-md-6">
-                    <label class="form-label fw-bold">
-                        @(Preferences.IsRtl ? "انتخاب یا تایپ تاریخ جلالی:" : "Select or Type Jalali Date:")
-                    </label>
-                    <IvanJalaliDatePicker @bind-Value="testDate" />
-                    
-                    <div class="mt-3 p-3 bg-light rounded border">
-                        <div class="small fw-bold text-secondary mb-1">@(Preferences.IsRtl ? "نتیجه پردازش تاریخ:" : "Date Inspection Result:")</div>
-                        <ul class="list-unstyled mb-0 small">
-                            <li><strong>@(Preferences.IsRtl ? "نمایش جلالی:" : "Jalali Display:")</strong> @formattedTestDate</li>
-                            <li><strong>@(Preferences.IsRtl ? "فرمت استاندارد ISO:" : "ISO DateOnly:")</strong> @(testDate?.ToString("yyyy-MM-dd") ?? "—")</li>
-                            <li><strong>@(Preferences.IsRtl ? "تبدیل به UTC:" : "UTC Round-trip:")</strong> @(testDate?.ToDateTime(TimeOnly.MinValue).ToString("yyyy-MM-ddTHH:mm:ssZ") ?? "—")</li>
-                            <li><strong>@(Preferences.IsRtl ? "وضعیت کبیسه سال:" : "Is Leap Year?:")</strong> @leapYearStatus</li>
-                        </ul>
-                    </div>
-                </div>
+        <!-- Celebratory Feedback Alert if clicked -->
+        @if (showCelebration)
+        {
+            <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm p-3 mb-4 text-center" style="border-radius: 1rem; background-color: #d1fae5;">
+                <div class="fs-2 mb-1">🎉 🌟 👏</div>
+                <h5 class="fw-bold text-success mb-1">@(Preferences.IsRtl ? "آفرین قهرمان! کارت عالی بود!" : "Awesome Job, Champ!")</h5>
+                <p class="mb-0 text-dark small">@(Preferences.IsRtl ? "ستاره‌های این کار به حساب تو اضافه شد!" : "Stars have been added to your balance!")</p>
+                <button type="button" class="btn-close" @onclick="() => showCelebration = false"></button>
+            </div>
+        }
 
-                <!-- Range Picker -->
-                <div class="col-md-6">
-                    <label class="form-label fw-bold">
-                        @(Preferences.IsRtl ? "محدوده تاریخ جلالی (Range Picker):" : "Jalali Date Range:")
-                    </label>
-                    <IvanJalaliDateRangePicker @bind-StartDate="rangeStart" @bind-EndDate="rangeEnd" />
-
-                    <div class="mt-3 p-3 bg-light rounded border">
-                        <div class="small fw-bold text-secondary mb-1">@(Preferences.IsRtl ? "نتیجه محدوده انتخابی:" : "Range Result:")</div>
-                        <div class="small">
-                            @(Preferences.IsRtl ? "از:" : "From:") <strong>@(rangeStart.HasValue ? CalendarService.FormatDate(rangeStart.Value, "yyyy/MM/dd", CalendarType.Jalali, Preferences.DigitStyle) : "—")</strong>
-                            &nbsp;|&nbsp;
-                            @(Preferences.IsRtl ? "تا:" : "To:") <strong>@(rangeEnd.HasValue ? CalendarService.FormatDate(rangeEnd.Value, "yyyy/MM/dd", CalendarType.Jalali, Preferences.DigitStyle) : "—")</strong>
-                        </div>
+        <!-- Star Scoreboard Banner -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm p-4 text-center h-100" style="border-radius: 1.25rem; background: linear-gradient(135deg, #fef3c7 0%, #fde047 100%);">
+                    <div style="font-size: 3rem;">⭐</div>
+                    <h2 class="fw-bold text-dark mb-1">
+                        @FormatNumber(childData?.StarsBalance ?? 0)
+                    </h2>
+                    <div class="fw-bold text-secondary">
+                        @(Preferences.IsRtl ? "ستاره درخشان داری!" : "Shiny Stars!")
                     </div>
                 </div>
             </div>
 
-            <!-- Leap Year Quick Tests -->
-            <div class="mt-4 pt-3 border-top">
-                <h6 class="fw-bold mb-2">@(Preferences.IsRtl ? "آزمون‌های سریع موعد و سال کبیسه:" : "Quick Leap Year Verification Tests:")</h6>
-                <div class="d-flex flex-wrap gap-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="SetLeapDate">
-                        @(Preferences.IsRtl ? "آزمون ۳۰ اسفند ۱۴۰۳ (کبیسه - معتبر)" : "Test 30 Esfand 1403 (Leap - Valid)")
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="SetNonLeapEnd">
-                        @(Preferences.IsRtl ? "آزمون ۲۹ اسفند ۱۴۰۴ (عادی - پایان سال)" : "Test 29 Esfand 1404 (Non-Leap - Valid)")
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="SetNorouz">
-                        @(Preferences.IsRtl ? "آزمون ۱ فروردین ۱۴۰۴ (نوروز)" : "Test 1 Farvardin 1404 (Norouz)")
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Phase 0.1: Radzen RTL / LTR Proof Components -->
-    <div class="card shadow-sm mb-4 border-0" style="border-radius: 1rem;">
-        <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-            <h5 class="fw-bold mb-1 text-primary">
-                🧩 @(Preferences.IsRtl ? "داستان ۰.۱: اجزای رادزن در حالت RTL و LTR" : "Story 0.1: Radzen Components under RTL/LTR")
-            </h5>
-            <p class="small text-secondary mb-0">
-                @(Preferences.IsRtl ? "بررسی عدم وجود استایل‌های فیزیکی چپ/راست و صحت چیدمان کامپوننت‌های رادزن" : "Verifying logical layout flip and Radzen RTL component behavior.")
-            </p>
-        </div>
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <RadzenCard class="p-3 border">
-                        <h6 class="fw-bold">Radzen Buttons</h6>
-                        <div class="d-flex flex-wrap gap-2 mt-2">
-                            <RadzenButton Text="@(Preferences.IsRtl ? "تایید" : "Submit")" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Medium" />
-                            <RadzenButton Text="@(Preferences.IsRtl ? "انصراف" : "Cancel")" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Medium" />
-                            <RadzenButton Icon="notifications" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Medium" Click="ShowNotification" />
-                        </div>
-                    </RadzenCard>
-                </div>
-
-                <div class="col-md-4">
-                    <RadzenCard class="p-3 border">
-                        <h6 class="fw-bold">Radzen Switch & Badges</h6>
-                        <div class="d-flex align-items-center justify-content-between mt-3">
-                            <span>@(Preferences.IsRtl ? "اعلان‌ها فعال:" : "Notifications Active:")</span>
-                            <RadzenSwitch @bind-Value="switchState" />
-                        </div>
-                        <div class="mt-3 d-flex gap-2">
-                            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@(Preferences.IsRtl ? "فعال" : "Active")" />
-                            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="@(Preferences.IsRtl ? "در انتظار" : "Pending")" />
-                        </div>
-                    </RadzenCard>
-                </div>
-
-                <div class="col-md-4">
-                    <RadzenCard class="p-3 border">
-                        <h6 class="fw-bold">Radzen Alert</h6>
-                        <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true" Size="AlertSize.Small" class="mt-2">
-                            @(Preferences.IsRtl
-                                ? "جهت صفحه فعلی: راست‌به‌چپ (RTL) با فونت وزیرمتن"
-                                : "Current direction: Left-to-Right (LTR)")
-                        </RadzenAlert>
-                    </RadzenCard>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Phase 0.3: Notification Proof -->
-    <div class="card shadow-sm mb-4 border-0" style="border-radius: 1rem;">
-        <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-            <h5 class="fw-bold mb-1 text-primary">
-                🔔 @(Preferences.IsRtl ? "داستان ۰.۳: اثبات سیستم اعلان‌ها (Notification Proof)" : "Story 0.3: Notification Proof")
-            </h5>
-            <p class="small text-secondary mb-0">
-                @(Preferences.IsRtl ? "آزمایش کانال‌های وب‌پوش، تلگرام و بله" : "Testing Web Push, Telegram, and Bale notification adapters.")
-            </p>
-        </div>
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-sm-4">
-                    <div class="p-3 border rounded text-center">
-                        <div class="fs-2 mb-2">🌐</div>
-                        <div class="fw-bold">Web Push</div>
-                        <button class="btn btn-sm btn-outline-primary mt-2 w-100" @onclick="() => SendTestNotification('W')">
-                            @(Preferences.IsRtl ? "ارسال پیام تست" : "Send Test")
-                        </button>
-                    </div>
-                </div>
-                <div class="col-sm-4">
-                    <div class="p-3 border rounded text-center">
-                        <div class="fs-2 mb-2">✈️</div>
-                        <div class="fw-bold">Telegram Bot</div>
-                        <button class="btn btn-sm btn-outline-primary mt-2 w-100" @onclick="() => SendTestNotification('T')">
-                            @(Preferences.IsRtl ? "ارسال پیام تست" : "Send Test")
-                        </button>
-                    </div>
-                </div>
-                <div class="col-sm-4">
-                    <div class="p-3 border rounded text-center">
-                        <div class="fs-2 mb-2">💬</div>
-                        <div class="fw-bold">Bale (بله)</div>
-                        <button class="btn btn-sm btn-outline-primary mt-2 w-100" @onclick="() => SendTestNotification('B')">
-                            @(Preferences.IsRtl ? "ارسال پیام تست" : "Send Test")
-                        </button>
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm p-4 text-center h-100" style="border-radius: 1.25rem; background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);">
+                    <div style="font-size: 3rem;">🐷</div>
+                    <h2 class="fw-bold text-dark mb-1">
+                        @FormatCurrency(childData?.PiggyBankBalance ?? 0)
+                    </h2>
+                    <div class="fw-bold text-secondary">
+                        @(Preferences.IsRtl ? "تومان در قلک تو ذخیره شده!" : "Toman in your Piggy Bank!")
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+
+        <!-- Today's Routine Checklist Cards for Child -->
+        <div class="card border-0 shadow-sm p-3 mb-4" style="border-radius: 1rem;">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h5 class="fw-bold mb-0">🎯 @(Preferences.IsRtl ? "کارهای امروز من" : "My Tasks for Today")</h5>
+                <span class="badge bg-light text-dark border fs-6">
+                    @FormatNumber(childData?.TodayCompletedRoutines ?? 0) / @FormatNumber(childData?.TodayTotalRoutines ?? 0)
+                </span>
+            </div>
+
+            @if (childData?.TodayRoutines.Count == 0)
+            {
+                <div class="alert alert-light text-center border p-4 text-muted my-3">
+                    🎈 @(Preferences.IsRtl ? "امروز هیچ کاری ثبت نشده، روزت شاد و خوش بگذره!" : "No tasks for today. Have fun!")
+                </div>
+            }
+            else
+            {
+                <div class="row g-3">
+                    @foreach (var routine in childData!.TodayRoutines)
+                    {
+                        <div class="col-sm-6 col-md-4">
+                            <div class="card h-100 border-2 @(routine.IsCompletedToday ? "border-success bg-success-subtle bg-opacity-25" : "border-primary") p-3 text-center" style="border-radius: 1rem;">
+                                <div style="font-size: 2.2rem;" class="mb-2">
+                                    @(routine.IsCompletedToday ? "🌟" : "🎯")
+                                </div>
+                                <h6 class="fw-bold text-dark mb-1">@routine.Title</h6>
+                                <div class="badge bg-warning text-dark mb-3">
+                                    +@FormatNumber(routine.Points) ⭐
+                                </div>
+                                <div>
+                                    @if (routine.IsCompletedToday)
+                                    {
+                                        <button class="btn btn-success btn-sm w-100 fw-bold disabled">
+                                            ✓ @(Preferences.IsRtl ? "آفرین! انجام شد" : "Done!")
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-primary btn-sm w-100 fw-bold py-2 shadow-sm" @onclick="() => CompleteChildRoutineAsync(routine.Id)">
+                                            🎉 @(Preferences.IsRtl ? "انجام دادم!" : "I Did It!")
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Affordable Rewards Store -->
+        @if (childData?.AffordableRewards.Count > 0)
+        {
+            <div class="card border-0 shadow-sm p-3" style="border-radius: 1rem;">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h5 class="fw-bold mb-0">🎁 @(Preferences.IsRtl ? "جوایزی که همین الان می‌تونی بگیری!" : "Rewards You Can Get Now!")</h5>
+                    <a href="/kids" class="small text-decoration-none">@(Preferences.IsRtl ? "فروشگاه کامل" : "Reward Store")</a>
+                </div>
+
+                <div class="row g-3">
+                    @foreach (var reward in childData.AffordableRewards)
+                    {
+                        <div class="col-sm-6 col-md-3">
+                            <div class="card h-100 border p-3 text-center bg-light" style="border-radius: 0.75rem;">
+                                <div style="font-size: 2rem;" class="mb-1">🎁</div>
+                                <div class="fw-bold text-dark small mb-1">@reward.Title</div>
+                                <div class="badge bg-secondary mb-3">@FormatNumber(reward.Cost) ⭐</div>
+                                <button class="btn btn-outline-primary btn-sm fw-bold w-100" @onclick="() => RedeemChildRewardAsync(reward.Id)">
+                                    🎁 @(Preferences.IsRtl ? "دریافت جایزه" : "Redeem")
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
 </div>
 
 @code {
-    private DateOnly? testDate = DateOnly.FromDateTime(DateTime.Today);
-    private DateOnly? rangeStart = DateOnly.FromDateTime(DateTime.Today);
-    private DateOnly? rangeEnd = DateOnly.FromDateTime(DateTime.Today.AddDays(7));
-    private bool switchState = true;
-    private bool isSetupCompleted = false;
+    private bool isLoading = true;
+    private bool showCelebration = false;
+
+    private ParentDashboardDto? parentData;
+    private TeenDashboardDto? teenData;
+    private ChildDashboardDto? childData;
+
+    private List<PersonDto> familyMembers = new();
+    private Guid selectedPersonId = Guid.Empty;
+    private List<RoutineTaskDto> todayRoutinesList = new();
 
     protected override async Task OnInitializedAsync()
     {
-        Preferences.OnChange += StateHasChanged;
-        isSetupCompleted = await SetupService.IsSetupCompletedAsync();
+        Preferences.OnChange += HandlePreferencesChanged;
+        await LoadDashboardAsync();
     }
 
-    private string formattedTestDate
+    public void Dispose()
     {
-        get
+        Preferences.OnChange -= HandlePreferencesChanged;
+    }
+
+    private async void HandlePreferencesChanged()
+    {
+        await InvokeAsync(async () =>
         {
-            if (!testDate.HasValue) return "—";
-            return CalendarService.FormatDate(testDate.Value, "dddd، d MMMM yyyy", CalendarType.Jalali, Preferences.DigitStyle);
-        }
-    }
-
-    private string leapYearStatus
-    {
-        get
-        {
-            if (!testDate.HasValue) return "—";
-            var jDate = CalendarService.ToJalali(testDate.Value);
-            bool isLeap = CalendarService.IsLeapYear(jDate.Year, CalendarType.Jalali);
-            return isLeap
-                ? (Preferences.IsRtl ? $"سال {jDate.Year} کبیسه است (اسفند ۳۰ روزه)" : $"Year {jDate.Year} is a leap year (30 days in Esfand)")
-                : (Preferences.IsRtl ? $"سال {jDate.Year} عادی است (اسفند ۲۹ روزه)" : $"Year {jDate.Year} is normal (29 days in Esfand)");
-        }
-    }
-
-    private void SetLeapDate()
-    {
-        testDate = CalendarService.ToDateOnly(1403, 12, 30, CalendarType.Jalali);
-    }
-
-    private void SetNonLeapEnd()
-    {
-        testDate = CalendarService.ToDateOnly(1404, 12, 29, CalendarType.Jalali);
-    }
-
-    private void SetNorouz()
-    {
-        testDate = CalendarService.ToDateOnly(1404, 1, 1, CalendarType.Jalali);
-    }
-
-    private void ShowNotification()
-    {
-        NotificationService.Notify(new NotificationMessage
-        {
-            Severity = NotificationSeverity.Info,
-            Summary = Preferences.IsRtl ? "اعلان سیستم" : "System Notification",
-            Detail = Preferences.IsRtl ? "این یک پیام نمونه از رادزن در ایوان است." : "Sample Radzen notification in Ivan.",
-            Duration = 4000
+            await LoadDashboardAsync();
+            StateHasChanged();
         });
     }
 
-    private void SendTestNotification(char channel)
+    private async Task LoadDashboardAsync()
     {
-        string channelName = channel switch
+        isLoading = true;
+        try
         {
-            'W' => "Web Push",
-            'T' => "Telegram",
-            'B' => "Bale",
-            _ => "Unknown"
-        };
+            familyMembers = await PersonService.GetPeopleAsync();
+            if (selectedPersonId == Guid.Empty && familyMembers.Count > 0)
+            {
+                selectedPersonId = familyMembers[0].Id;
+            }
 
-        NotificationService.Notify(new NotificationMessage
+            if (Preferences.ActivePersona == "Parent")
+            {
+                parentData = await DashboardService.GetParentDashboardAsync();
+            }
+            else if (Preferences.ActivePersona == "Teen")
+            {
+                teenData = await DashboardService.GetTeenDashboardAsync(selectedPersonId);
+                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                var list = await ChildrenService.GetRoutineTasksAsync(selectedPersonId, today);
+                todayRoutinesList = list.ToList();
+            }
+            else if (Preferences.ActivePersona == "Child")
+            {
+                childData = await DashboardService.GetChildDashboardAsync(selectedPersonId);
+            }
+        }
+        catch (Exception ex)
         {
-            Severity = NotificationSeverity.Success,
-            Summary = Preferences.IsRtl ? $"پیام تست به {channelName}" : $"Test message sent to {channelName}",
-            Detail = Preferences.IsRtl ? "پیام آزمایشی به صف ارسال اضافه شد." : "Test message queued successfully.",
-            Duration = 3000
-        });
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
+
+    private async Task OnPersonSelected(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var pid))
+        {
+            selectedPersonId = pid;
+            await LoadDashboardAsync();
+        }
+    }
+
+    private async Task CompleteRoutineAsync(Guid routineTaskId)
+    {
+        try
+        {
+            await ChildrenService.CompleteRoutineTaskAsync(routineTaskId);
+            NotificationService.Notify(NotificationSeverity.Success, Preferences.IsRtl ? "ثبت شد" : "Done",
+                Preferences.IsRtl ? "روتین با موفقیت ثبت شد." : "Routine marked as completed.");
+            await LoadDashboardAsync();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+    }
+
+    private async Task CompleteChildRoutineAsync(Guid routineTaskId)
+    {
+        try
+        {
+            await ChildrenService.CompleteRoutineTaskAsync(routineTaskId);
+            showCelebration = true;
+            await LoadDashboardAsync();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+    }
+
+    private async Task RedeemChildRewardAsync(Guid rewardId)
+    {
+        try
+        {
+            await ChildrenService.RedeemRewardAsync(rewardId, selectedPersonId);
+            NotificationService.Notify(NotificationSeverity.Success, Preferences.IsRtl ? "درخواست جایزه" : "Reward Request",
+                Preferences.IsRtl ? "درخواست جایزه برای تایید والدین ارسال شد! 🎉" : "Reward requested! Sent for parent approval.");
+            await LoadDashboardAsync();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+    }
+
+    private string FormatCurrency(long amount) =>
+        CalendarService.ConvertDigits(amount.ToString("N0"), Preferences.DigitStyle);
+
+    private string FormatNumber(long number) =>
+        CalendarService.ConvertDigits(number.ToString("N0"), Preferences.DigitStyle);
 }

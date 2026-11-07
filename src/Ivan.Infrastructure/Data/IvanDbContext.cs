@@ -94,6 +94,11 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
     public DbSet<MediaEpisode> MediaEpisodes => Set<MediaEpisode>();
     public DbSet<EpisodeWatchProgress> EpisodeWatchProgresses => Set<EpisodeWatchProgress>();
 
+    // Phase 7 Dashboard, Backup, AI
+    public DbSet<HouseholdAiConfig> HouseholdAiConfigs => Set<HouseholdAiConfig>();
+    public DbSet<AiUsageLog> AiUsageLogs => Set<AiUsageLog>();
+    public DbSet<BackupRecord> BackupRecords => Set<BackupRecord>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -168,6 +173,11 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
         builder.Entity<MediaPersonProgress>().ToTable("MediaPersonProgresses");
         builder.Entity<MediaEpisode>().ToTable("MediaEpisodes");
         builder.Entity<EpisodeWatchProgress>().ToTable("EpisodeWatchProgresses");
+
+        // Phase 7 Tables
+        builder.Entity<HouseholdAiConfig>().ToTable("HouseholdAiConfigs");
+        builder.Entity<AiUsageLog>().ToTable("AiUsageLogs");
+        builder.Entity<BackupRecord>().ToTable("BackupRecords");
 
         // Relationships
         builder.Entity<Account>()
@@ -285,6 +295,11 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
         builder.Entity<MediaPersonProgress>().HasIndex(mp => new { mp.HouseholdId, mp.PersonId, mp.WatchStatus });
         builder.Entity<MediaEpisode>().HasIndex(me => new { me.HouseholdId, me.MediaItemId, me.SeasonNumber, me.EpisodeNumber });
         builder.Entity<EpisodeWatchProgress>().HasIndex(ew => new { ew.HouseholdId, ew.PersonId, ew.EpisodeId });
+
+        // Phase 7 Indexes
+        builder.Entity<HouseholdAiConfig>().HasIndex(h => new { h.HouseholdId, h.IsEnabled });
+        builder.Entity<AiUsageLog>().HasIndex(l => new { l.HouseholdId, l.Timestamp });
+        builder.Entity<BackupRecord>().HasIndex(br => new { br.HouseholdId, br.CreatedAtTime });
 
         // AppUser & Household soft delete filters
         builder.Entity<AppUser>().HasQueryFilter(u => u.DeletedAt == null);

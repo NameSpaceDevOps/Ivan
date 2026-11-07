@@ -376,9 +376,9 @@ public class AssetService : IAssetService
 
     private static AssetDto MapToAssetDto(Asset a) => new(
         a.Id,
-        a.PropertyId,
+        a.PropertyId ?? Guid.Empty,
         a.SpaceId,
-        a.CategoryId,
+        a.CategoryId ?? Guid.Empty,
         a.Category?.Name ?? string.Empty,
         a.Name,
         a.Brand,

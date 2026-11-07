@@ -20,6 +20,16 @@
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
+    <script>
+        window.ivanDownloadFile = function (fileName, contentType, base64Data) {
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = "data:" + contentType + ";base64," + base64Data;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+    </script>
 </body>
 
 </html>

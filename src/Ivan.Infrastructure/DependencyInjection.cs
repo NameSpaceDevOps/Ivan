@@ -75,6 +75,13 @@ public static class DependencyInjection
         services.AddScoped<ILibraryService, LibraryService>();
         services.AddScoped<IMediaService, MediaService>();
 
+        // Phase 7 Dashboard, Backup, AI
+        services.AddScoped<ISearchService, SearchService>();
+        services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IBackupService, BackupService>();
+        services.AddScoped<IImportExportService, ImportExportService>();
+        services.AddScoped<IAiAssistantService, AiAssistantService>();
+
         return services;
     }
 }

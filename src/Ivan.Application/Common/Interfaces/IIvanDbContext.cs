@@ -76,5 +76,10 @@ public interface IIvanDbContext
     DbSet<MediaEpisode> MediaEpisodes { get; }
     DbSet<EpisodeWatchProgress> EpisodeWatchProgresses { get; }
 
+    // Phase 7 Dashboard, Backup, AI
+    DbSet<HouseholdAiConfig> HouseholdAiConfigs { get; }
+    DbSet<AiUsageLog> AiUsageLogs { get; }
+    DbSet<BackupRecord> BackupRecords { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

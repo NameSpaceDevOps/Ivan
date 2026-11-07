@@ -1,0 +1,596 @@
+@page "/settings"
+@rendermode InteractiveServer
+@using Ivan.Application.Services
+@using Ivan.Domain.Enums
+@using System.Text
+@using Microsoft.AspNetCore.Components.Forms
+@inject IBackupService BackupService
+@inject IImportExportService ImportExportService
+@inject IAiAssistantService AiService
+@inject ICurrentUserContext UserContext
+@inject ICalendarService CalendarService
+@inject UserPreferencesState Preferences
+@inject NotificationService NotificationService
+@inject IJSRuntime JS
+
+<PageTitle>@(Preferences.IsRtl ? "تنظیمات، پشتیبان‌گیری و هوش مصنوعی — ایوان" : "Settings, Backup & AI — Ivan")</PageTitle>
+
+<div class="container-fluid p-0">
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div>
+            <h4 class="fw-bold mb-1">
+                ⚙️ @(Preferences.IsRtl ? "تنظیمات، پشتیبان‌گیری و ابزارها" : "Settings, Backups & Tools")
+            </h4>
+            <p class="text-secondary small mb-0">
+                @(Preferences.IsRtl
+                    ? "مدیریت پشتیبان‌های دیتابیس، درون‌ریزی/برون‌ریزی فایل‌ها و تنظیمات دستیار هوش مصنوعی اختیاری"
+                    : "Manage database snapshots, CSV/JSON import-export and optional local/cloud AI assistant")
+            </p>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills mb-4 gap-2 bg-light p-2 rounded border">
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "backups" ? "active" : "")" @onclick='() => activeTab = "backups"'>
+                💾 @(Preferences.IsRtl ? "پشتیبان‌گیری و بازیابی" : "Backups & Snapshots")
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "importexport" ? "active" : "")" @onclick='() => activeTab = "importexport"'>
+                🔄 @(Preferences.IsRtl ? "درون‌ریزی و برون‌ریزی" : "Import & Export")
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "ai" ? "active" : "")" @onclick='() => activeTab = "ai"'>
+                🤖 @(Preferences.IsRtl ? "دستیار هوش مصنوعی اختیاری" : "Optional AI Assistant")
+            </button>
+        </li>
+    </ul>
+
+    @if (activeTab == "backups")
+    {
+        <!-- Backups Tab -->
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm p-3">
+                    <h5 class="fw-bold mb-3">@(Preferences.IsRtl ? "تهیه نسخه پشتیبان جدید" : "Create New Backup")</h5>
+                    <p class="small text-secondary mb-3">
+                        @(Preferences.IsRtl
+                            ? "پشتیبان‌گیری آنلاین و زنده از دیتابیس بدون قفل شدن تراکنش‌ها (VACUUM INTO SQLite). حداکثر ۱۰ نسخه آخر نگهداری می‌شود."
+                            : "Non-blocking online SQLite snapshot using VACUUM INTO. The last 10 snapshots are retained.")
+                    </p>
+                    <button class="btn btn-primary w-100 mb-2 py-2 fw-bold" @onclick="CreateBackupAsync" disabled="@isBusy">
+                        @if (isBusy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <span>💾 @(Preferences.IsRtl ? "تهیه نسخه پشتیبان آنی" : "Create Snapshot Now")</span>
+                    </button>
+                    <button class="btn btn-outline-secondary w-100 py-2" @onclick="ExportZipAsync" disabled="@isBusy">
+                        📦 @(Preferences.IsRtl ? "دریافت فایل فشرده (ZIP) خانوار" : "Download Household ZIP Export")
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h5 class="fw-bold mb-0">@(Preferences.IsRtl ? "تاریخچه نسخه‌های پشتیبان" : "Backup History")</h5>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadBackupsAsync">🔄</button>
+                    </div>
+
+                    @if (backups.Count == 0)
+                    {
+                        <div class="alert alert-light text-center border p-4">
+                            @(Preferences.IsRtl ? "هنوز نسخه پشتیبانی ثبت نشده است." : "No backup snapshots found.")
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>@(Preferences.IsRtl ? "نام فایل" : "File Name")</th>
+                                        <th>@(Preferences.IsRtl ? "تاریخ ثبت" : "Created At")</th>
+                                        <th>@(Preferences.IsRtl ? "حجم فایل" : "Size")</th>
+                                        <th>@(Preferences.IsRtl ? "تعداد رکوردها" : "Rows")</th>
+                                        <th>@(Preferences.IsRtl ? "وضعیت سلامت" : "Integrity")</th>
+                                        <th>@(Preferences.IsRtl ? "عملیات" : "Action")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var b in backups)
+                                    {
+                                        <tr>
+                                            <td class="small fw-semibold">@b.FileName</td>
+                                            <td class="small text-secondary">
+                                                @CalendarService.FormatDate(DateOnly.FromDateTime(b.CreatedAtTime.LocalDateTime), "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle)
+                                                <span class="d-block text-muted" style="font-size: 0.75rem;">@b.CreatedAtTime.LocalDateTime.ToString("HH:mm")</span>
+                                            </td>
+                                            <td class="small">@FormatFileSize(b.FileSizeBytes)</td>
+                                            <td class="small">@(string.IsNullOrEmpty(b.Notes) ? "—" : b.Notes)</td>
+                                            <td>
+                                                @if (b.IsVerified)
+                                                {
+                                                    <span class="badge bg-success-subtle text-success border border-success">
+                                                        ✓ @(Preferences.IsRtl ? "سالم" : "Valid")
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary-subtle text-secondary border">
+                                                        @(Preferences.IsRtl ? "بررسی نشده" : "Pending")
+                                                    </span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-outline-primary" @onclick="() => VerifyIntegrityAsync(b.FilePath)" disabled="@isBusy">
+                                                    🔍 @(Preferences.IsRtl ? "تست سلامت" : "Dry-run Verify")
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else if (activeTab == "importexport")
+    {
+        <!-- Import & Export Tab -->
+        <div class="row g-4">
+            <!-- Full JSON Export -->
+            <div class="col-12">
+                <div class="card border-0 shadow-sm p-4 bg-light">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div>
+                            <h5 class="fw-bold mb-1">📤 @(Preferences.IsRtl ? "برون‌ریزی جامع خانوار (Full JSON Export)" : "Full Household JSON Export")</h5>
+                            <p class="small text-secondary mb-0">
+                                @(Preferences.IsRtl
+                                    ? "دریافت کلیه داده‌های خانوار (اموال، مالی، افراد، کتابخانه، وظایف) در قالب یک فایل استاندارد JSON جهت نگهداری یا انتقال."
+                                    : "Export all household data (assets, finance, people, media, tasks) as a portable JSON document.")
+                            </p>
+                        </div>
+                        <button class="btn btn-success fw-bold px-4 py-2" @onclick="ExportJsonAsync" disabled="@isBusy">
+                            💾 @(Preferences.IsRtl ? "دریافت فایل JSON کامل" : "Download Full JSON")
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CSV Import: Books -->
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm p-3">
+                    <h6 class="fw-bold mb-2">📚 @(Preferences.IsRtl ? "درون‌ریزی کتاب‌ها (Books CSV)" : "Import Books (CSV)")</h6>
+                    <p class="small text-secondary mb-3">
+                        @(Preferences.IsRtl ? "ستون‌ها: Title, Author, Isbn, Publisher, Year" : "Columns: Title, Author, Isbn, Publisher, Year")
+                    </p>
+                    <textarea class="form-control form-control-sm mb-3 font-monospace" rows="4" @bind="booksCsvText" placeholder="Title,Author,Isbn,Publisher,Year&#10;کلیدر,محمود دولت‌آبادی,9789643050012,فرهنگ معاصر,1368"></textarea>
+                    <button class="btn btn-outline-primary btn-sm w-100 fw-bold" @onclick="ImportBooksAsync" disabled="@isBusy">
+                        📥 @(Preferences.IsRtl ? "درون‌ریزی کتاب‌ها" : "Import Books")
+                    </button>
+                </div>
+            </div>
+
+            <!-- CSV Import: Assets -->
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm p-3">
+                    <h6 class="fw-bold mb-2">📦 @(Preferences.IsRtl ? "درون‌ریزی اموال و وسایل (Assets CSV)" : "Import Assets (CSV)")</h6>
+                    <p class="small text-secondary mb-3">
+                        @(Preferences.IsRtl ? "ستون‌ها: Name, Category, Brand, Model, Serial, Price" : "Columns: Name, Category, Brand, Model, Serial, Price")
+                    </p>
+                    <textarea class="form-control form-control-sm mb-3 font-monospace" rows="4" @bind="assetsCsvText" placeholder="Name,Category,Brand,Model,Serial,Price&#10;تلویزیون OLED,صوتی تصویری,Sony,A80K,SN123456,75000000"></textarea>
+                    <button class="btn btn-outline-primary btn-sm w-100 fw-bold" @onclick="ImportAssetsAsync" disabled="@isBusy">
+                        📥 @(Preferences.IsRtl ? "درون‌ریزی وسایل" : "Import Assets")
+                    </button>
+                </div>
+            </div>
+
+            <!-- CSV Import: Transactions -->
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm p-3">
+                    <h6 class="fw-bold mb-2">💳 @(Preferences.IsRtl ? "درون‌ریزی تراکنش‌های مالی (CSV)" : "Import Transactions (CSV)")</h6>
+                    <p class="small text-secondary mb-3">
+                        @(Preferences.IsRtl ? "ستون‌ها: Date, Amount, Description, DebitAccount, CreditAccount" : "Columns: Date, Amount, Description, DebitAccount, CreditAccount")
+                    </p>
+                    <textarea class="form-control form-control-sm mb-3 font-monospace" rows="4" @bind="transactionsCsvText" placeholder="Date,Amount,Description,DebitAccount,CreditAccount&#10;1403-08-16,350000,خرید میوه,هزینه روزمره,بانک ملت"></textarea>
+                    <button class="btn btn-outline-primary btn-sm w-100 fw-bold" @onclick="ImportTransactionsAsync" disabled="@isBusy">
+                        📥 @(Preferences.IsRtl ? "درون‌ریزی به دفترکل" : "Import to Ledger")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+    else if (activeTab == "ai")
+    {
+        <!-- Optional AI Tab -->
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm p-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h5 class="fw-bold mb-0">🤖 @(Preferences.IsRtl ? "تنظیمات دستیار هوش مصنوعی" : "AI Assistant Configuration")</h5>
+                        <div class="form-check form-switch fs-5">
+                            <input class="form-check-input" type="checkbox" role="switch" @bind="aiEnabled" id="aiEnableSwitch" />
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info py-2 small mb-3">
+                        🛡️ @(Preferences.IsRtl
+                            ? "مرز حریم خصوصی ایوان: اطلاعات پزشکی و پرونده‌های سلامت هرگز برای مدل‌های هوش مصنوعی ارسال نخواهند شد و در سمت سرور مسدود می‌شوند."
+                            : "Ivan Privacy Boundary: Health, medical dossier and sensitive personal data are strictly blocked from being sent to any AI model.")
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">@(Preferences.IsRtl ? "ارائه‌دهنده سرویس (Provider):" : "Provider:")</label>
+                        <select class="form-select form-select-sm" @bind="aiProvider">
+                            <option value="@AiProviderType.OpenAI">OpenAI (ChatGPT / GPT-4o-mini)</option>
+                            <option value="@AiProviderType.Anthropic">Anthropic (Claude 3.5 Sonnet / Haiku)</option>
+                            <option value="@AiProviderType.Ollama">Ollama (Local Offline LLM)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">@(Preferences.IsRtl ? "نام مدل:" : "Model Name:")</label>
+                        <input type="text" class="form-control form-control-sm" @bind="aiModelId" placeholder="gpt-4o-mini / llama3.2" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">@(Preferences.IsRtl ? "آدرس سرور / Endpoint (برای مدل‌های محلی Ollama یا کاستوم):" : "Endpoint URL:")</label>
+                        <input type="text" class="form-control form-control-sm" @bind="aiEndpoint" placeholder="http://localhost:11434/v1" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">@(Preferences.IsRtl ? "کلید API (رمزگذاری شده ذخیره می‌شود):" : "API Key:")</label>
+                        <input type="password" class="form-control form-control-sm" @bind="aiApiKey" placeholder="sk-..." />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">@(Preferences.IsRtl ? "سقف ماهانه توکن:" : "Monthly Token Cap:")</label>
+                        <input type="number" class="form-control form-control-sm" @bind="aiMonthlyCap" step="1000" />
+                    </div>
+
+                    <button class="btn btn-primary fw-bold w-100 py-2 mt-2" @onclick="SaveAiConfigAsync" disabled="@isBusy">
+                        💾 @(Preferences.IsRtl ? "ذخیره تنظیمات هوش مصنوعی" : "Save AI Configuration")
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <!-- Usage stats & Privacy Test -->
+                <div class="card border-0 shadow-sm p-4 mb-4">
+                    <h5 class="fw-bold mb-3">📊 @(Preferences.IsRtl ? "مصرف توکن ماه جاری" : "Current Month Usage")</h5>
+                    <div class="d-flex justify-content-between small fw-bold mb-1">
+                        <span>@(Preferences.IsRtl ? "مصرف شده:" : "Used:") @FormatNumber(aiConfig?.UsedTokensThisMonth ?? 0) @(Preferences.IsRtl ? "توکن" : "tokens")</span>
+                        <span>@(Preferences.IsRtl ? "سقف ماهانه:" : "Cap:") @FormatNumber(aiConfig?.MonthlyCapTokens ?? aiMonthlyCap) @(Preferences.IsRtl ? "توکن" : "tokens")</span>
+                    </div>
+                    <div class="progress mb-3" style="height: 12px;">
+                        <div class="progress-bar @((aiConfig?.UsagePercent ?? 0) >= 100 ? "bg-danger" : "bg-primary")"
+                             role="progressbar"
+                             style="width: @Math.Min(100, (aiConfig?.UsagePercent ?? 0))%;"
+                             aria-valuenow="@(aiConfig?.UsagePercent ?? 0)"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
+                        </div>
+                    </div>
+                    <div class="small text-secondary">
+                        @(Preferences.IsRtl ? "درصد مصرف ماه جاری:" : "Monthly Usage Percentage:")
+                        <span class="fw-bold text-dark">@((aiConfig?.UsagePercent ?? 0).ToString("F1"))%</span>
+                    </div>
+                </div>
+
+                <!-- Interactive Command Test -->
+                <div class="card border-0 shadow-sm p-4">
+                    <h5 class="fw-bold mb-2">💬 @(Preferences.IsRtl ? "آزمون ورودی زبان طبیعی (NLP)" : "Test Natural Language Input")</h5>
+                    <p class="small text-secondary mb-3">
+                        @(Preferences.IsRtl
+                            ? "تایپ دستوراتی نظیر «۵۰۰۰۰۰ تومان خرید میوه ثبت کن» یا «ساعت ۱۸ یادآور جلسه فردا بذار»"
+                            : "Try prompts like '۵۰۰۰۰۰ تومان خرید میوه ثبت کن' or 'ساعت ۱۸ یادآور فردا'")
+                    </p>
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" @bind="nlpPrompt" placeholder="@(Preferences.IsRtl ? "دستور خود را بنویسید..." : "Enter command...")" />
+                        <button class="btn btn-outline-primary fw-bold" @onclick="TestNlpCommandAsync" disabled="@isBusy">
+                            🚀 @(Preferences.IsRtl ? "پردازش" : "Parse")
+                        </button>
+                    </div>
+
+                    @if (parsedQuickAdd != null)
+                    {
+                        <div class="alert alert-light border p-3 small mb-0">
+                            <div><strong>@(Preferences.IsRtl ? "نوع دستور:" : "Intent:")</strong> <span class="badge bg-primary">@parsedQuickAdd.IntentType</span></div>
+                            <div class="mt-1"><strong>@(Preferences.IsRtl ? "عنوان / شرح:" : "Summary:")</strong> @parsedQuickAdd.Title</div>
+                            @if (!string.IsNullOrEmpty(parsedQuickAdd.Details))
+                            {
+                                <div class="mt-1"><strong>@(Preferences.IsRtl ? "جزئیات:" : "Details:")</strong> @parsedQuickAdd.Details</div>
+                            }
+                            @if (parsedQuickAdd.Amount.HasValue)
+                            {
+                                <div class="mt-1"><strong>@(Preferences.IsRtl ? "مبلغ استخراج شده:" : "Amount:")</strong> @FormatNumber(parsedQuickAdd.Amount.Value) @(Preferences.IsRtl ? "تومان" : "Toman")</div>
+                            }
+                            @if (parsedQuickAdd.DueDate.HasValue)
+                            {
+                                <div class="mt-1"><strong>@(Preferences.IsRtl ? "تاریخ / زمان استخراج شده:" : "Target Date:")</strong> @parsedQuickAdd.DueDate.Value.ToString("yyyy-MM-dd HH:mm")</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string activeTab = "backups";
+    private bool isBusy = false;
+    private List<BackupRecordDto> backups = new();
+
+    private string booksCsvText = "";
+    private string assetsCsvText = "";
+    private string transactionsCsvText = "";
+
+    private bool aiEnabled = false;
+    private AiProviderType aiProvider = AiProviderType.OpenAI;
+    private string? aiModelId = "gpt-4o-mini";
+    private string? aiEndpoint = "";
+    private string? aiApiKey = "";
+    private int aiMonthlyCap = 100_000;
+    private HouseholdAiConfigDto? aiConfig;
+    private string nlpPrompt = "";
+    private ParsedQuickAddDto? parsedQuickAdd = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBackupsAsync();
+        await LoadAiConfigAsync();
+    }
+
+    private async Task LoadBackupsAsync()
+    {
+        try
+        {
+            var res = await BackupService.GetBackupRecordsAsync();
+            backups = res.ToList();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+    }
+
+    private async Task CreateBackupAsync()
+    {
+        isBusy = true;
+        try
+        {
+            var b = await BackupService.CreateBackupAsync();
+            NotificationService.Notify(NotificationSeverity.Success, Preferences.IsRtl ? "موفقیت" : "Success",
+                Preferences.IsRtl ? $"پشتیبان با موفقیت ایجاد شد: {b.FileName}" : $"Backup created: {b.FileName}");
+            await LoadBackupsAsync();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task VerifyIntegrityAsync(string path)
+    {
+        isBusy = true;
+        try
+        {
+            var check = await BackupService.DryRunRestoreAsync(path);
+            if (check.IsValid)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, Preferences.IsRtl ? "تست سلامت" : "Integrity Check",
+                    Preferences.IsRtl ? $"دیتابیس کاملاً سالم است ({check.TotalRows} رکورد در {check.TableCount} جدول)." : $"Integrity check passed ({check.TotalRows} rows in {check.TableCount} tables).");
+                await LoadBackupsAsync();
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Warning, Preferences.IsRtl ? "هشدار سلامت" : "Integrity Warning",
+                    Preferences.IsRtl ? $"آزمون سلامت با شکست مواجه شد: {check.ErrorMessage}" : $"Integrity check failed: {check.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task ExportZipAsync()
+    {
+        isBusy = true;
+        try
+        {
+            var householdId = UserContext.HouseholdId ?? Guid.Empty;
+            var zipBytes = await BackupService.ExportHouseholdZipAsync(householdId);
+            var base64 = Convert.ToBase64String(zipBytes);
+            await JS.InvokeVoidAsync("ivanDownloadFile", $"Ivan_Household_{DateTime.UtcNow:yyyyMMdd_HHmm}.zip", "application/zip", base64);
+            NotificationService.Notify(NotificationSeverity.Success, Preferences.IsRtl ? "دانلود" : "Export",
+                Preferences.IsRtl ? "فایل فشرده خانوار آماده دانلود شد." : "Household zip file ready.");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task ExportJsonAsync()
+    {
+        isBusy = true;
+        try
+        {
+            var householdId = UserContext.HouseholdId ?? Guid.Empty;
+            var json = await ImportExportService.ExportHouseholdJsonAsync(householdId);
+            var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
+            await JS.InvokeVoidAsync("ivanDownloadFile", $"Ivan_Household_{DateTime.UtcNow:yyyyMMdd_HHmm}.json", "application/json", base64);
+            NotificationService.Notify(NotificationSeverity.Success, Preferences.IsRtl ? "خروجی JSON" : "Export JSON",
+                Preferences.IsRtl ? "فایل داده‌های خانوار آماده دانلود شد." : "Household JSON export ready.");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task ImportBooksAsync()
+    {
+        if (string.IsNullOrWhiteSpace(booksCsvText)) return;
+        isBusy = true;
+        try
+        {
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(booksCsvText));
+            var res = await ImportExportService.ImportBooksCsvAsync(stream);
+            NotificationService.Notify(NotificationSeverity.Success, Preferences.IsRtl ? "درون‌ریزی کتاب‌ها" : "Books Import",
+                Preferences.IsRtl ? $"{res.SucceededRows} کتاب اضافه شد ({res.FailedRows} خطا یا نادیده گرفته شد)." : $"Imported {res.SucceededRows} books, {res.FailedRows} skipped/failed.");
+            booksCsvText = "";
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task ImportAssetsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(assetsCsvText)) return;
+        isBusy = true;
+        try
+        {
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(assetsCsvText));
+            var res = await ImportExportService.ImportAssetsCsvAsync(stream);
+            NotificationService.Notify(NotificationSeverity.Success, Preferences.IsRtl ? "درون‌ریزی وسایل" : "Assets Import",
+                Preferences.IsRtl ? $"{res.SucceededRows} وسیله اضافه شد ({res.FailedRows} خطا یا نادیده گرفته شد)." : $"Imported {res.SucceededRows} assets, {res.FailedRows} skipped/failed.");
+            assetsCsvText = "";
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task ImportTransactionsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(transactionsCsvText)) return;
+        isBusy = true;
+        try
+        {
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(transactionsCsvText));
+            var res = await ImportExportService.ImportTransactionsCsvAsync(stream);
+            NotificationService.Notify(NotificationSeverity.Success, Preferences.IsRtl ? "درون‌ریزی تراکنش‌ها" : "Transactions Import",
+                Preferences.IsRtl ? $"{res.SucceededRows} تراکنش در دفترکل ثبت شد." : $"Imported {res.SucceededRows} journal transactions.");
+            transactionsCsvText = "";
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task LoadAiConfigAsync()
+    {
+        try
+        {
+            aiConfig = await AiService.GetConfigAsync();
+            aiEnabled = aiConfig.IsEnabled;
+            aiProvider = aiConfig.Provider;
+            aiEndpoint = aiConfig.Endpoint;
+            aiModelId = aiConfig.ModelId;
+            aiMonthlyCap = aiConfig.MonthlyCapTokens;
+        }
+        catch
+        {
+            // fallback
+        }
+    }
+
+    private async Task SaveAiConfigAsync()
+    {
+        isBusy = true;
+        try
+        {
+            var req = new UpdateAiConfigRequest(
+                aiEnabled,
+                aiProvider,
+                aiEndpoint,
+                aiApiKey,
+                aiModelId,
+                aiMonthlyCap);
+
+            aiConfig = await AiService.UpdateConfigAsync(req);
+            NotificationService.Notify(NotificationSeverity.Success, Preferences.IsRtl ? "تنظیمات" : "Settings",
+                Preferences.IsRtl ? "تنظیمات دستیار هوش مصنوعی ذخیره شد." : "AI configuration updated.");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task TestNlpCommandAsync()
+    {
+        if (string.IsNullOrWhiteSpace(nlpPrompt)) return;
+        isBusy = true;
+        try
+        {
+            parsedQuickAdd = await AiService.ParseQuickAddAsync(nlpPrompt);
+            aiConfig = await AiService.GetConfigAsync();
+            NotificationService.Notify(NotificationSeverity.Success, Preferences.IsRtl ? "پردازش هوشمند" : "NLP",
+                Preferences.IsRtl ? "دستور با موفقیت تفسیر شد." : "Command parsed successfully.");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, Preferences.IsRtl ? "خطای پردازش یا حریم خصوصی" : "Processing / Privacy Error", ex.Message);
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F2} MB";
+    }
+
+    private string FormatNumber(long number) =>
+        CalendarService.ConvertDigits(number.ToString("N0"), Preferences.DigitStyle);
+}
