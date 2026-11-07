@@ -1,0 +1,146 @@
+@page "/setup"
+@using Ivan.Application.Services
+@using Ivan.Domain.Enums
+@inject ISetupWizardService SetupService
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+
+<PageTitle>راه‌اندازی اولیه ایوان (Setup Wizard)</PageTitle>
+
+<div class="container py-4" style="max-width: 600px;">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-3 text-secondary">در حال بررسی وضعیت راه‌اندازی...</p>
+        </div>
+    }
+    else if (isCompleted)
+    {
+        <div class="card shadow-sm border-0 text-center p-4" style="border-radius: 1rem;">
+            <div class="fs-1 mb-2">✅</div>
+            <h4 class="fw-bold text-success mb-2">راه‌اندازی اولیه قبلاً انجام شده است</h4>
+            <p class="text-secondary mb-4">
+                تنظیمات خانه و حساب مدیر ثبت گردیده است. اجرای مجدد ویزارد مسدود می‌باشد.
+            </p>
+            <div>
+                <a href="/" class="btn btn-primary px-4">ورود به صفحه اصلی</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0" style="border-radius: 1rem;">
+            <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-0 text-center">
+                <span style="font-size: 2.5rem;">🏡</span>
+                <h3 class="fw-bold mt-2">خوش آمدید به ایوان</h3>
+                <p class="text-secondary small">
+                    لطفاً اطلاعات اولیه خانه و حساب کاربری مدیر را وارد نمایید.
+                </p>
+            </div>
+
+            <div class="card-body px-4 pb-4">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger py-2 px-3 small" role="alert">
+                        @errorMessage
+                    </div>
+                }
+
+                <EditForm Model="@request" OnValidSubmit="HandleSetup">
+                    <!-- Household Info -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">نام خانواده یا خانه:</label>
+                        <InputText class="form-control" @bind-Value="request.HouseholdName" placeholder="مثال: خانواده بهار" required />
+                    </div>
+
+                    <!-- Owner Account -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">نام کاربری مدیر:</label>
+                            <InputText class="form-control" @bind-Value="request.OwnerUserName" placeholder="admin" required />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold">نام نمایشی مدیر:</label>
+                            <InputText class="form-control" @bind-Value="request.OwnerDisplayName" placeholder="بابک" required />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">رمز عبور مدیر:</label>
+                        <InputText type="password" class="form-control" @bind-Value="request.OwnerPassword" placeholder="حداقل ۶ کاراکتر" required />
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small text-secondary">ایمیل (اختیاری):</label>
+                            <InputText type="email" class="form-control" @bind-Value="request.OwnerEmail" placeholder="admin@example.com" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-secondary">شماره همراه (اختیاری):</label>
+                            <InputText class="form-control" @bind-Value="request.OwnerPhone" placeholder="۰۹۱۲..." />
+                        </div>
+                    </div>
+
+                    <!-- Initial Property -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">نام اولین ملک:</label>
+                        <InputText class="form-control" @bind-Value="request.InitialPropertyName" placeholder="خانه اصلی" required />
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-2 fw-bold" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>در حال ذخیره...</span>
+                        }
+                        else
+                        {
+                            <span>تکمیل راه‌اندازی و ورود به ایوان</span>
+                        }
+                    </button>
+                </EditForm>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool isCompleted = false;
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    private SetupWizardRequest request = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        isCompleted = await SetupService.IsSetupCompletedAsync();
+        isLoading = false;
+    }
+
+    private async Task HandleSetup()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        var result = await SetupService.ExecuteSetupAsync(request);
+        isSubmitting = false;
+
+        if (result.Success)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Success,
+                Summary = "راه‌اندازی با موفقیت انجام شد",
+                Detail = $"خانه {request.HouseholdName} با موفقیت ایجاد گردید.",
+                Duration = 4000
+            });
+            Navigation.NavigateTo("/");
+        }
+        else
+        {
+            errorMessage = result.ErrorMessage;
+        }
+    }
+}

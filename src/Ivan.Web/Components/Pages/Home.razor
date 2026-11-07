@@ -4,10 +4,11 @@
 @using Ivan.Domain.Enums
 @using Ivan.Web.Components.Common
 @inject ICalendarService CalendarService
+@inject ISetupWizardService SetupService
 @inject UserPreferencesState Preferences
 @inject NotificationService NotificationService
 
-<PageTitle>@(Preferences.IsRtl ? "ایوان — پیش‌نمایش فاز ۰ (Spike)" : "Ivan — Phase 0 Spike Proof")</PageTitle>
+<PageTitle>@(Preferences.IsRtl ? "ایوان — داشبورد فاز ۰ و ۱" : "Ivan — Phase 0 & 1 Dashboard")</PageTitle>
 
 <div class="container-fluid px-0">
     <!-- Header banner -->
@@ -16,10 +17,10 @@
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div>
                     <h2 class="fw-bold mb-1">
-                        @(Preferences.IsRtl ? "ایوان (Ivan) — اثبات فاز ۰ (Phase 0 Spike)" : "Ivan — Phase 0 Spike Proof")
+                        @(Preferences.IsRtl ? "ایوان (Ivan) — فاز ۰ و فاز ۱ (Foundation)" : "Ivan — Phase 0 & Phase 1 Foundation")
                     </h2>
                     <p class="mb-0 opacity-75">
-                        @(Preferences.IsRtl ? "بررسی تعامل راست‌به‌چپ (RTL/LTR)، تقویم شمسی جلالی و پوسته ریسپانسیو رادزن" : "Testing RTL/LTR shell, custom Jalali date picker & Radzen components")
+                        @(Preferences.IsRtl ? "سیستم چندمستأجری خانوار، ایزولاسیون داده‌ها، تقویم شمسی جلالی و پوسته واکنش‌گرا" : "Multi-tenant household engine, data isolation, Jalali calendar & responsive shell")
                     </p>
                 </div>
                 <div class="d-flex gap-2">
@@ -31,11 +32,84 @@
         </div>
     </div>
 
+    <!-- Phase 1: Foundation Overview Card -->
+    <div class="card shadow-sm mb-4 border-0" style="border-radius: 1rem;">
+        <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+            <div class="d-flex align-items-center justify-content-between flex-wrap">
+                <div>
+                    <h5 class="fw-bold mb-1 text-primary">
+                        🏛️ @(Preferences.IsRtl ? "فاز ۱: هسته زیرساخت و دسترسی (Foundation)" : "Phase 1: Foundation & Access Engine")
+                    </h5>
+                    <p class="small text-secondary mb-0">
+                        @(Preferences.IsRtl
+                            ? "راه‌اندازی اولیه (Setup Wizard)، چندمستأجری خانوار، فیلترهای سراسری، دسترسی‌ها و حذف نرم"
+                            : "Setup Wizard, Multi-tenancy isolation filters, Access Grants & Soft Delete")
+                    </p>
+                </div>
+                <div class="mt-2 mt-sm-0">
+                    <a href="/setup" class="btn btn-sm btn-outline-primary fw-bold">
+                        ⚙️ @(Preferences.IsRtl ? "ویزارد راه‌اندازی (Setup)" : "Setup Wizard")
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3 col-sm-6">
+                    <div class="p-3 bg-light rounded border text-center">
+                        <div class="fs-3 mb-1">🧙‍♂️</div>
+                        <div class="fw-bold small">@(Preferences.IsRtl ? "داستان ۱.۱: ویزارد اولیه" : "Story 1.1: Setup Wizard")</div>
+                        <div class="mt-2">
+                            @if (isSetupCompleted)
+                            {
+                                <span class="badge bg-success">@(Preferences.IsRtl ? "تکمیل شده" : "Completed")</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark">@(Preferences.IsRtl ? "نیاز به راه‌اندازی" : "Pending Setup")</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 col-sm-6">
+                    <div class="p-3 bg-light rounded border text-center">
+                        <div class="fs-3 mb-1">🛡️</div>
+                        <div class="fw-bold small">@(Preferences.IsRtl ? "داستان ۱.۳: ایزولاسیون خانوار" : "Story 1.3: Tenancy Isolation")</div>
+                        <div class="mt-2">
+                            <span class="badge bg-primary">@(Preferences.IsRtl ? "فیلتر سراسری فعال" : "Global Filters Active")</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 col-sm-6">
+                    <div class="p-3 bg-light rounded border text-center">
+                        <div class="fs-3 mb-1">🏢</div>
+                        <div class="fw-bold small">@(Preferences.IsRtl ? "داستان ۱.۵: املاک و فضاها" : "Story 1.5: Properties & Spaces")</div>
+                        <div class="mt-2">
+                            <span class="badge bg-info text-dark">@(Preferences.IsRtl ? "سرویس فعال" : "Service Ready")</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 col-sm-6">
+                    <div class="p-3 bg-light rounded border text-center">
+                        <div class="fs-3 mb-1">♻️</div>
+                        <div class="fw-bold small">@(Preferences.IsRtl ? "داستان ۱.۸: حذف نرم ۳۰ روزه" : "Story 1.8: Soft Delete")</div>
+                        <div class="mt-2">
+                            <span class="badge bg-secondary">@(Preferences.IsRtl ? "ردیابی و لاگ فعال" : "Audit & Retention Active")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Phase 0.1 & 0.2: Interactive Jalali Calendar & DatePicker Card -->
     <div class="card shadow-sm mb-4 border-0" style="border-radius: 1rem;">
         <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
             <h5 class="fw-bold mb-1 text-primary">
-                📅 @(Preferences.IsRtl ? "داستان ۰.۲: انتخابگر تاریخ جلالی و تقویم شمسی" : "Story 0.2: Jalali DatePicker & Calendar Service")
+                📅 @(Preferences.IsRtl ? "داستان ۰.۲: انتخابگر تاریخ جلالی و تقوim شمسی" : "Story 0.2: Jalali DatePicker & Calendar Service")
             </h5>
             <p class="small text-secondary mb-0">
                 @(Preferences.IsRtl
@@ -199,10 +273,12 @@
     private DateOnly? rangeStart = DateOnly.FromDateTime(DateTime.Today);
     private DateOnly? rangeEnd = DateOnly.FromDateTime(DateTime.Today.AddDays(7));
     private bool switchState = true;
+    private bool isSetupCompleted = false;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Preferences.OnChange += StateHasChanged;
+        isSetupCompleted = await SetupService.IsSetupCompletedAsync();
     }
 
     private string formattedTestDate
@@ -229,19 +305,16 @@
 
     private void SetLeapDate()
     {
-        // 1403/12/30
         testDate = CalendarService.ToDateOnly(1403, 12, 30, CalendarType.Jalali);
     }
 
     private void SetNonLeapEnd()
     {
-        // 1404/12/29
         testDate = CalendarService.ToDateOnly(1404, 12, 29, CalendarType.Jalali);
     }
 
     private void SetNorouz()
     {
-        // 1404/01/01
         testDate = CalendarService.ToDateOnly(1404, 1, 1, CalendarType.Jalali);
     }
 

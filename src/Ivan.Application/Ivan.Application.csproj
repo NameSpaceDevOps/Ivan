@@ -5,6 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
   </ItemGroup>
 
@@ -12,9 +13,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.0.232.1</Version>
-    <AssemblyVersion>1.0.232.1</AssemblyVersion>
-    <FileVersion>1.0.232.1</FileVersion>
+    <Version>1.1.232.2</Version>
+    <AssemblyVersion>1.1.232.2</AssemblyVersion>
+    <FileVersion>1.1.232.2</FileVersion>
   </PropertyGroup>
 
 </Project>
