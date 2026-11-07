@@ -68,6 +68,9 @@ public static class DependencyInjection
         services.AddScoped<ILedgerService, LedgerService>();
         services.AddScoped<IFinanceService, FinanceService>();
 
+        // Phase 5 Children, Wallet, Homework
+        services.AddScoped<IChildrenService, ChildrenService>();
+
         return services;
     }
 }

@@ -52,5 +52,20 @@ public interface IIvanDbContext
     DbSet<Installment> Installments { get; }
     DbSet<BalanceCheck> BalanceChecks { get; }
 
+    // Phase 5 Children, Wallet, Homework
+    DbSet<RoutineTask> RoutineTasks { get; }
+    DbSet<RoutineCompletion> RoutineCompletions { get; }
+    DbSet<PointLedger> PointLedgers { get; }
+    DbSet<Reward> Rewards { get; }
+    DbSet<RewardRedemption> RewardRedemptions { get; }
+    DbSet<Subject> Subjects { get; }
+    DbSet<HomeworkItem> HomeworkItems { get; }
+    DbSet<ExamEvent> ExamEvents { get; }
+    DbSet<SchoolSchedule> SchoolSchedules { get; }
+    DbSet<WalletLink> WalletLinks { get; }
+    DbSet<AllowanceRule> AllowanceRules { get; }
+    DbSet<SavingsGoal> SavingsGoals { get; }
+    DbSet<WalletRequest> WalletRequests { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

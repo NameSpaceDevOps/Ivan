@@ -10,7 +10,9 @@ public enum CalendarItemType
     DocumentExpiry = 6,
     WarrantyExpiry = 7,
     ChequeDue = 8,
-    InstallmentDue = 9
+    InstallmentDue = 9,
+    HomeworkDue = 10,
+    ExamEvent = 11
 }
 
 public record CalendarEventDto(

@@ -230,6 +230,52 @@ public class CalendarViewService : ICalendarViewService
                 "var(--rz-primary)"));
         }
 
+        // 9. Homework Items Due
+        var hwQuery = _db.HomeworkItems
+            .Include(h => h.Subject)
+            .Include(h => h.Person)
+            .Where(h => h.Status != HomeworkStatus.Reviewed && h.DueOn >= startDateOnly && h.DueOn <= endDateOnly);
+
+        if (request.PersonId.HasValue)
+            hwQuery = hwQuery.Where(h => h.PersonId == request.PersonId.Value);
+
+        var homeworks = await hwQuery.ToListAsync(ct);
+        foreach (var hw in homeworks)
+        {
+            var due = new DateTimeOffset(hw.DueOn.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+            events.Add(new CalendarEventDto(
+                hw.Id,
+                CalendarItemType.HomeworkDue,
+                $"Homework: {hw.Title} ({hw.Subject?.Name ?? "General"}) - {hw.Person?.DisplayName}",
+                due,
+                hw.Details,
+                "/kids",
+                "var(--rz-info)"));
+        }
+
+        // 10. Exam Events
+        var examQuery = _db.ExamEvents
+            .Include(e => e.Subject)
+            .Include(e => e.Person)
+            .Where(e => e.Date >= startDateOnly && e.Date <= endDateOnly);
+
+        if (request.PersonId.HasValue)
+            examQuery = examQuery.Where(e => e.PersonId == request.PersonId.Value);
+
+        var exams = await examQuery.ToListAsync(ct);
+        foreach (var ex in exams)
+        {
+            var due = new DateTimeOffset(ex.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+            events.Add(new CalendarEventDto(
+                ex.Id,
+                CalendarItemType.ExamEvent,
+                $"Exam: {ex.Topics} ({ex.Subject?.Name}) - {ex.Person?.DisplayName}",
+                due,
+                ex.Topics,
+                "/kids",
+                "var(--rz-danger)"));
+        }
+
         return events.OrderBy(e => e.DueAt).ToList();
     }
 }

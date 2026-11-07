@@ -1,0 +1,1176 @@
+@page "/kids"
+@rendermode InteractiveServer
+@inject IChildrenService ChildrenService
+@inject IPersonService PersonService
+@inject ICurrentUserContext UserContext
+@inject ICalendarService CalendarService
+@inject UserPreferencesState Preferences
+
+<PageTitle>@(Preferences.IsRtl ? "کودکان و نوجوانان — ایوان" : "Kids & Teens — Ivan")</PageTitle>
+
+<div class="container-fluid p-0">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="mb-1">@(Preferences.IsRtl ? "کودکان و نوجوانان" : "Kids & Teens")</h4>
+            <p class="text-secondary small mb-0">@(Preferences.IsRtl ? "روتین‌ها، ستاره‌ها و جوایز، تکالیف مدرسه و قلک دیجیتال" : "Routines, stars & rewards, homework and digital wallet")</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-sm d-flex align-items-center gap-1" @onclick="OpenAddRoutineModal">
+                <span>+</span>
+                <span>@(Preferences.IsRtl ? "روتین جدید" : "Add Routine")</span>
+            </button>
+            <button class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1" @onclick="OpenAddHomeworkModal">
+                <span>+</span>
+                <span>@(Preferences.IsRtl ? "تکلیف جدید" : "Add Homework")</span>
+            </button>
+            <button class="btn btn-outline-success btn-sm d-flex align-items-center gap-1" @onclick="OpenAddRewardModal">
+                <span>+</span>
+                <span>@(Preferences.IsRtl ? "جایزه جدید" : "Add Reward")</span>
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">@(Preferences.IsRtl ? "در حال بارگذاری..." : "Loading...")</p>
+        </div>
+    }
+    else if (!people.Any())
+    {
+        <div class="card border-0 shadow-sm text-center py-5">
+            <span style="font-size: 3rem;">🧒</span>
+            <h5 class="mt-3">@(Preferences.IsRtl ? "هنوز عضوی از خانواده ثبت نشده است" : "No family members found")</h5>
+            <p class="text-muted small">@(Preferences.IsRtl ? "ابتدا فرزند یا عضو خانواده را در بخش افراد ثبت کنید." : "Please add family members in the People module first.")</p>
+            <div class="mt-2">
+                <a href="/people" class="btn btn-primary btn-sm">@(Preferences.IsRtl ? "رفتن به پرونده افراد" : "Go to People")</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Child Selector Bar -->
+        <div class="card border-0 shadow-sm p-3 mb-3 bg-white">
+            <div class="row align-items-center g-2">
+                <div class="col-12 col-md-4">
+                    <label class="form-label small text-muted mb-1">@(Preferences.IsRtl ? "انتخاب فرزند / شخص:" : "Select Child / Person:")</label>
+                    <select class="form-select form-select-sm" value="@selectedPersonId" @onchange="OnPersonChanged">
+                        @foreach (var p in people)
+                        {
+                            <option value="@p.Id">@p.DisplayName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12 col-md-8">
+                    <!-- Scoreboard Badges -->
+                    <div class="d-flex flex-wrap gap-2 justify-content-md-end align-items-center">
+                        <div class="badge bg-warning text-dark p-2 fs-6 d-flex align-items-center gap-1 shadow-sm" style="cursor: pointer;" @onclick="OpenHistoryModal">
+                            <span>⭐</span>
+                            <span>@pointBalance @(Preferences.IsRtl ? "ستاره" : "Stars")</span>
+                        </div>
+                        <div class="badge bg-success p-2 fs-6 d-flex align-items-center gap-1 shadow-sm">
+                            <span>💳</span>
+                            <span>@FormatMoney(kidWallet?.Balance ?? 0)</span>
+                        </div>
+                        <div class="badge bg-info text-white p-2 fs-6 d-flex align-items-center gap-1 shadow-sm">
+                            <span>📚</span>
+                            <span>@homeworkList.Count(h => h.Status != HomeworkStatus.Reviewed) @(Preferences.IsRtl ? "تکلیف جاری" : "Active HW")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section Navigation Tabs -->
+        <ul class="nav nav-pills mb-3 gap-2">
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "routines" ? "active" : "")" @onclick='() => activeTab = "routines"'>
+                    📋 @(Preferences.IsRtl ? "روتین‌ها و کارها" : "Routines")
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "rewards" ? "active" : "")" @onclick='() => activeTab = "rewards"'>
+                    🎁 @(Preferences.IsRtl ? "فروشگاه جوایز" : "Rewards")
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "school" ? "active" : "")" @onclick='() => activeTab = "school"'>
+                    🎒 @(Preferences.IsRtl ? "مدرسه و تکالیف" : "School & Homework")
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "wallet" ? "active" : "")" @onclick='() => activeTab = "wallet"'>
+                    💰 @(Preferences.IsRtl ? "کیف پول و قلک" : "Wallet & Goals")
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "parent" ? "active" : "") position-relative" @onclick='() => activeTab = "parent"'>
+                    🛡️ @(Preferences.IsRtl ? "کارتابل والدین" : "Parent Desk")
+                    @if (pendingApprovals.Count + pendingRedemptions.Count + pendingWalletRequests.Count > 0)
+                    {
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                            @(pendingApprovals.Count + pendingRedemptions.Count + pendingWalletRequests.Count)
+                        </span>
+                    }
+                </button>
+            </li>
+        </ul>
+
+        <!-- TAB 1: ROUTINES -->
+        @if (activeTab == "routines")
+        {
+            <div class="row g-3">
+                @if (!routineTasks.Any())
+                {
+                    <div class="col-12">
+                        <div class="card border-0 shadow-sm text-center py-4">
+                            <span style="font-size: 2.5rem;">🌟</span>
+                            <h6 class="mt-2">@(Preferences.IsRtl ? "هیچ روتینی برای این روز تعریف نشده است" : "No routines created yet")</h6>
+                            <p class="text-muted small">@(Preferences.IsRtl ? "با فشردن دکمه «روتین جدید» عادت‌های مثبت ایجاد کنید." : "Create good habits by adding routine tasks.")</p>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var slot in Enum.GetValues<RoutineTimeSlot>())
+                    {
+                        var slotTasks = routineTasks.Where(t => t.TimeSlot == slot).ToList();
+                        if (slotTasks.Any())
+                        {
+                            <div class="col-12">
+                                <h6 class="fw-bold text-muted mb-2">@GetTimeSlotTitle(slot)</h6>
+                                <div class="row g-2">
+                                    @foreach (var r in slotTasks)
+                                    {
+                                        <div class="col-12 col-md-6 col-lg-4">
+                                            <div class="card border-0 shadow-sm p-3 h-100 d-flex flex-column justify-content-between">
+                                                <div>
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <span class="fs-4">@GetRoutineIcon(r.Icon)</span>
+                                                        <span class="badge bg-warning text-dark">+@r.Points ⭐</span>
+                                                    </div>
+                                                    <h6 class="fw-bold mb-1">@r.Title</h6>
+                                                    <small class="text-muted">@(r.RequiresApproval ? (Preferences.IsRtl ? "نیاز به تأیید والدین" : "Requires parent check") : (Preferences.IsRtl ? "تأیید خودکار" : "Auto-approved"))</small>
+                                                </div>
+                                                <div class="mt-3">
+                                                    @if (r.IsCompletedToday)
+                                                    {
+                                                        @if (r.TodayStatus == CompletionStatus.Approved)
+                                                        {
+                                                            <div class="alert alert-success py-1 px-2 mb-0 small text-center">
+                                                                ✓ @(Preferences.IsRtl ? "آفرین! تکمیل شد" : "Completed!")
+                                                            </div>
+                                                        }
+                                                        else if (r.TodayStatus == CompletionStatus.PendingApproval)
+                                                        {
+                                                            <div class="alert alert-warning py-1 px-2 mb-0 small text-center">
+                                                                ⏳ @(Preferences.IsRtl ? "در انتظار تأیید والدین" : "Pending parent review")
+                                                            </div>
+                                                        }
+                                                        else
+                                                        {
+                                                            <div class="alert alert-danger py-1 px-2 mb-0 small text-center">
+                                                                ✕ @(Preferences.IsRtl ? "رد شد" : "Rejected")
+                                                            </div>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <button class="btn btn-outline-success btn-sm w-100 py-2 fw-bold" @onclick="() => CompleteRoutine(r.Id)">
+                                                            ✓ @(Preferences.IsRtl ? "انجام دادم!" : "I did it!")
+                                                        </button>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                }
+            </div>
+        }
+
+        <!-- TAB 2: REWARDS -->
+        @if (activeTab == "rewards")
+        {
+            <div class="row g-3">
+                @if (!rewards.Any())
+                {
+                    <div class="col-12">
+                        <div class="card border-0 shadow-sm text-center py-4">
+                            <span style="font-size: 2.5rem;">🎁</span>
+                            <h6 class="mt-2">@(Preferences.IsRtl ? "هنوز جایزه‌ای تعریف نشده است" : "No rewards defined yet")</h6>
+                            <p class="text-muted small">@(Preferences.IsRtl ? "والدین می‌توانند جوایز هیجان‌انگیزی را اضافه کنند." : "Parents can add exciting rewards for stars.")</p>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var rew in rewards)
+                    {
+                        var canAfford = pointBalance >= rew.Cost;
+                        <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                            <div class="card border-0 shadow-sm p-3 h-100 text-center d-flex flex-column justify-content-between">
+                                <div>
+                                    <div class="fs-1 mb-2">@GetRewardIcon(rew.Icon)</div>
+                                    <h6 class="fw-bold mb-1">@rew.Title</h6>
+                                    <div class="text-warning fw-bold fs-5 mb-3">@rew.Cost ⭐</div>
+                                </div>
+                                <button class="btn @(canAfford ? "btn-warning text-dark" : "btn-secondary") btn-sm w-100 fw-bold"
+                                        disabled="@(!canAfford)"
+                                        @onclick="() => RedeemReward(rew.Id)">
+                                    @(canAfford ? (Preferences.IsRtl ? "دریافت جایزه" : "Redeem") : (Preferences.IsRtl ? "ستاره ناکافی" : "Need more stars"))
+                                </button>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        }
+
+        <!-- TAB 3: SCHOOL & HOMEWORK -->
+        @if (activeTab == "school")
+        {
+            <div class="row g-3">
+                <!-- Homework Column -->
+                <div class="col-12 col-lg-7">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold mb-0">📚 @(Preferences.IsRtl ? "تکالیف درسی" : "Homework Assignments")</h6>
+                        <button class="btn btn-sm btn-link p-0 text-decoration-none" @onclick="OpenAddHomeworkModal">
+                            + @(Preferences.IsRtl ? "افزودن" : "Add")
+                        </button>
+                    </div>
+
+                    @if (!homeworkList.Any())
+                    {
+                        <div class="card border-0 shadow-sm text-center py-4 text-muted">
+                            <small>@(Preferences.IsRtl ? "هیچ تکلیفی ثبت نشده است" : "No homework recorded")</small>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column gap-2">
+                            @foreach (var hw in homeworkList)
+                            {
+                                <div class="card border-0 shadow-sm p-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-1">
+                                        <div>
+                                            <span class="badge bg-secondary mb-1">@hw.SubjectName</span>
+                                            <h6 class="fw-bold mb-0">@hw.Title</h6>
+                                        </div>
+                                        <span class="badge @GetHomeworkStatusBadge(hw.Status)">@GetHomeworkStatusText(hw.Status)</span>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(hw.Details))
+                                    {
+                                        <p class="text-secondary small mb-2">@hw.Details</p>
+                                    }
+                                    <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                                        <small class="text-muted">
+                                            📅 @(Preferences.IsRtl ? "مهلت:" : "Due:") @FormatDate(hw.DueOn)
+                                        </small>
+                                        <div class="d-flex gap-1">
+                                            @if (hw.Status == HomeworkStatus.Assigned)
+                                            {
+                                                <button class="btn btn-outline-primary btn-sm" @onclick="() => UpdateHomework(hw.Id, HomeworkStatus.Completed)">
+                                                    @(Preferences.IsRtl ? "تکمیل شد ✓" : "Done ✓")
+                                                </button>
+                                            }
+                                            else if (hw.Status == HomeworkStatus.Completed)
+                                            {
+                                                <button class="btn btn-outline-success btn-sm" @onclick="() => UpdateHomework(hw.Id, HomeworkStatus.Reviewed, true)">
+                                                    @(Preferences.IsRtl ? "تأیید والدین ✓" : "Parent Review ✓")
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <small class="text-success fw-bold">✓ @(Preferences.IsRtl ? "بررسی شده" : "Reviewed")</small>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Exams & Schedule Column -->
+                <div class="col-12 col-lg-5">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold mb-0">📝 @(Preferences.IsRtl ? "امتحانات و ارزشیابی‌ها" : "Exams & Evaluations")</h6>
+                        <button class="btn btn-sm btn-link p-0 text-decoration-none" @onclick="OpenAddExamModal">
+                            + @(Preferences.IsRtl ? "افزودن" : "Add")
+                        </button>
+                    </div>
+
+                    @if (!exams.Any())
+                    {
+                        <div class="card border-0 shadow-sm text-center py-4 text-muted mb-3">
+                            <small>@(Preferences.IsRtl ? "امتحانی ثبت نشده است" : "No exams recorded")</small>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column gap-2 mb-3">
+                            @foreach (var ex in exams)
+                            {
+                                <div class="card border-0 shadow-sm p-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-1">
+                                        <div>
+                                            <span class="badge bg-danger mb-1">@ex.SubjectName</span>
+                                            <h6 class="fw-bold mb-0">@ex.Topics</h6>
+                                        </div>
+                                        @if (ex.Score.HasValue)
+                                        {
+                                            <span class="badge bg-success fs-6">@ex.Score.Value</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">@(Preferences.IsRtl ? "پیش‌رو" : "Upcoming")</span>
+                                        }
+                                    </div>
+                                    <small class="text-muted mt-2">
+                                        📅 @FormatDate(ex.Date)
+                                    </small>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <!-- Weekly Timetable -->
+                    <h6 class="fw-bold mb-2">🗓️ @(Preferences.IsRtl ? "برنامه هفتگی کلاس‌ها" : "Weekly Schedule")</h6>
+                    @if (!schoolSchedules.Any())
+                    {
+                        <div class="card border-0 shadow-sm text-center py-4 text-muted">
+                            <small>@(Preferences.IsRtl ? "برنامه کلاسی ثبت نشده است" : "No class schedule recorded")</small>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="list-group shadow-sm">
+                            @foreach (var sch in schoolSchedules.OrderBy(s => s.DayOfWeek).ThenBy(s => s.Period))
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
+                                    <div>
+                                        <span class="fw-bold me-2">@GetDayName(sch.DayOfWeek)</span>
+                                        <span class="badge bg-light text-dark border">@sch.Period</span>
+                                        <span class="ms-2">@sch.SubjectName</span>
+                                    </div>
+                                    <small class="text-muted">@sch.StartTime - @sch.EndTime</small>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- TAB 4: WALLET & SAVINGS GOALS -->
+        @if (activeTab == "wallet")
+        {
+            <div class="row g-3">
+                <!-- Wallet Status & Withdrawal Card -->
+                <div class="col-12 col-md-5">
+                    <div class="card border-0 shadow-sm p-3 h-100">
+                        <h6 class="fw-bold mb-2">💳 @(Preferences.IsRtl ? "قلک و کیف پول دیجیتال" : "Digital Wallet & Piggy Bank")</h6>
+                        <div class="bg-light p-3 rounded text-center my-3">
+                            <small class="text-muted d-block">@(Preferences.IsRtl ? "موجودی فعلی" : "Current Balance")</small>
+                            <h3 class="fw-bold text-success mb-0">@FormatMoney(kidWallet?.Balance ?? 0)</h3>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary" @onclick="OpenRequestWalletModal">
+                                🛍️ @(Preferences.IsRtl ? "درخواست برداشت یا خرید" : "Request Money / Purchase")
+                            </button>
+                        </div>
+
+                        @if (allowanceRule != null)
+                        {
+                            <div class="mt-4 pt-3 border-top">
+                                <h6 class="small fw-bold text-muted mb-2">@(Preferences.IsRtl ? "کمک هزینه و پول توجیبی خودکار" : "Automated Allowance")</h6>
+                                <p class="small mb-1">
+                                    💰 @(Preferences.IsRtl ? "مبلغ:" : "Amount:") <strong>@FormatMoney(allowanceRule.Amount)</strong>
+                                </p>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Savings Goals Column -->
+                <div class="col-12 col-md-7">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold mb-0">🎯 @(Preferences.IsRtl ? "هدف‌های پس‌انداز" : "Savings Goals")</h6>
+                        <button class="btn btn-sm btn-link p-0 text-decoration-none" @onclick="OpenAddGoalModal">
+                            + @(Preferences.IsRtl ? "هدف جدید" : "Add Goal")
+                        </button>
+                    </div>
+
+                    @if (!savingsGoals.Any())
+                    {
+                        <div class="card border-0 shadow-sm text-center py-4 text-muted">
+                            <small>@(Preferences.IsRtl ? "هنوز هدفی برای پس‌انداز تعریف نشده است" : "No savings goals defined yet")</small>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column gap-3">
+                            @foreach (var g in savingsGoals)
+                            {
+                                <div class="card border-0 shadow-sm p-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="fw-bold mb-0">@g.Title</h6>
+                                        <span class="badge @(g.ProgressPercent >= 100 ? "bg-success" : "bg-primary")">@g.ProgressPercent%</span>
+                                    </div>
+                                    <div class="progress mb-2" style="height: 10px;">
+                                        <div class="progress-bar @(g.ProgressPercent >= 100 ? "bg-success" : "bg-primary")"
+                                             role="progressbar"
+                                             style="width: @Math.Min(100, g.ProgressPercent)%;"></div>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center small text-muted">
+                                        <span>@FormatMoney(g.CurrentSaved) / @FormatMoney(g.TargetAmount)</span>
+                                        @if (g.TargetDate.HasValue)
+                                        {
+                                            <span>📅 @FormatDate(g.TargetDate.Value)</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- TAB 5: PARENT DESK -->
+        @if (activeTab == "parent")
+        {
+            <div class="row g-3">
+                <!-- Pending Routine Approvals -->
+                <div class="col-12 col-md-4">
+                    <div class="card border-0 shadow-sm p-3 h-100">
+                        <h6 class="fw-bold mb-2">📋 @(Preferences.IsRtl ? "تأیید روتین‌ها" : "Routine Approvals") (@pendingApprovals.Count)</h6>
+                        @if (!pendingApprovals.Any())
+                        {
+                            <div class="text-center py-4 text-muted">
+                                <small>@(Preferences.IsRtl ? "موردی برای تأیید نیست" : "No pending routines")</small>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-column gap-2">
+                                @foreach (var p in pendingApprovals)
+                                {
+                                    <div class="card bg-light border-0 p-2">
+                                        <div class="d-flex justify-content-between">
+                                            <strong>@p.TaskTitle</strong>
+                                            <span class="badge bg-warning text-dark">+@p.PointsAwarded ⭐</span>
+                                        </div>
+                                        <small class="text-muted">@FormatDate(p.Date)</small>
+                                        <div class="d-flex gap-2 mt-2">
+                                            <button class="btn btn-success btn-sm flex-fill" @onclick="() => ApproveRoutine(p.Id)">
+                                                ✓ @(Preferences.IsRtl ? "تأیید" : "Approve")
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm flex-fill" @onclick="() => RejectRoutine(p.Id)">
+                                                ✕ @(Preferences.IsRtl ? "رد" : "Reject")
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Pending Reward Redemptions -->
+                <div class="col-12 col-md-4">
+                    <div class="card border-0 shadow-sm p-3 h-100">
+                        <h6 class="fw-bold mb-2">🎁 @(Preferences.IsRtl ? "درخواست‌های جایزه" : "Reward Redemptions") (@pendingRedemptions.Count)</h6>
+                        @if (!pendingRedemptions.Any())
+                        {
+                            <div class="text-center py-4 text-muted">
+                                <small>@(Preferences.IsRtl ? "درخواستی وجود ندارد" : "No pending redemptions")</small>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-column gap-2">
+                                @foreach (var r in pendingRedemptions)
+                                {
+                                    <div class="card bg-light border-0 p-2">
+                                        <div class="d-flex justify-content-between">
+                                            <strong>@r.RewardTitle</strong>
+                                            <span class="badge bg-warning text-dark">-@r.Cost ⭐</span>
+                                        </div>
+                                        <small class="text-muted">@r.PersonName</small>
+                                        <div class="d-flex gap-2 mt-2">
+                                            <button class="btn btn-success btn-sm flex-fill" @onclick="() => ApproveRedemption(r.Id)">
+                                                ✓ @(Preferences.IsRtl ? "تأیید" : "Approve")
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm flex-fill" @onclick="() => RejectRedemption(r.Id)">
+                                                ✕ @(Preferences.IsRtl ? "رد" : "Reject")
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Pending Wallet Requests -->
+                <div class="col-12 col-md-4">
+                    <div class="card border-0 shadow-sm p-3 h-100">
+                        <h6 class="fw-bold mb-2">💳 @(Preferences.IsRtl ? "درخواست‌های برداشت پول" : "Wallet Requests") (@pendingWalletRequests.Count)</h6>
+                        @if (!pendingWalletRequests.Any())
+                        {
+                            <div class="text-center py-4 text-muted">
+                                <small>@(Preferences.IsRtl ? "درخواستی وجود ندارد" : "No pending wallet requests")</small>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-column gap-2">
+                                @foreach (var w in pendingWalletRequests)
+                                {
+                                    <div class="card bg-light border-0 p-2">
+                                        <div class="d-flex justify-content-between">
+                                            <strong>@FormatMoney(w.Amount)</strong>
+                                            <span class="badge bg-secondary">@w.Kind</span>
+                                        </div>
+                                        <small class="text-muted">@w.PersonName: @w.Reason</small>
+                                        <div class="d-flex gap-2 mt-2">
+                                            <button class="btn btn-success btn-sm flex-fill" @onclick="() => ApproveWalletRequest(w.Id)">
+                                                ✓ @(Preferences.IsRtl ? "تأیید و پرداخت" : "Approve & Pay")
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm flex-fill" @onclick="() => RejectWalletRequest(w.Id)">
+                                                ✕ @(Preferences.IsRtl ? "رد" : "Reject")
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<!-- MODAL: ADD ROUTINE -->
+@if (showAddRoutineModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(Preferences.IsRtl ? "افزودن روتین جدید" : "New Routine Task")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showAddRoutineModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "عنوان روتین" : "Title")</label>
+                        <input type="text" class="form-control" @bind="newRoutineTitle" placeholder="@(Preferences.IsRtl ? "مثلاً مسواک زدن" : "e.g. Brush teeth")" />
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">@(Preferences.IsRtl ? "زمان انجام" : "Time Slot")</label>
+                            <select class="form-select" @bind="newRoutineSlot">
+                                <option value="@RoutineTimeSlot.Morning">@(Preferences.IsRtl ? "صبح" : "Morning")</option>
+                                <option value="@RoutineTimeSlot.Afternoon">@(Preferences.IsRtl ? "بعدازظهر" : "Afternoon")</option>
+                                <option value="@RoutineTimeSlot.Evening">@(Preferences.IsRtl ? "عصر" : "Evening")</option>
+                                <option value="@RoutineTimeSlot.Bedtime">@(Preferences.IsRtl ? "موقع خواب" : "Bedtime")</option>
+                                <option value="@RoutineTimeSlot.Anytime">@(Preferences.IsRtl ? "هر زمان" : "Anytime")</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">@(Preferences.IsRtl ? "امتیاز (ستاره)" : "Stars Awarded")</label>
+                            <input type="number" class="form-control" @bind="newRoutinePoints" />
+                        </div>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="chkApproval" @bind="newRoutineRequiresApproval" />
+                        <label class="form-check-label" for="chkApproval">
+                            @(Preferences.IsRtl ? "نیاز به تأیید والدین دارد" : "Requires parent approval")
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showAddRoutineModal = false">@(Preferences.IsRtl ? "انصراف" : "Cancel")</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveRoutine">@(Preferences.IsRtl ? "ذخیره" : "Save")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- MODAL: ADD REWARD -->
+@if (showAddRewardModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(Preferences.IsRtl ? "افزودن جایزه جدید" : "New Reward")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showAddRewardModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "عنوان جایزه" : "Reward Title")</label>
+                        <input type="text" class="form-control" @bind="newRewardTitle" placeholder="@(Preferences.IsRtl ? "مثلاً یک ساعت بازی ویدیویی" : "e.g. 1 hour gaming")" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "هزینه (ستاره)" : "Star Cost")</label>
+                        <input type="number" class="form-control" @bind="newRewardCost" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showAddRewardModal = false">@(Preferences.IsRtl ? "انصراف" : "Cancel")</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveReward">@(Preferences.IsRtl ? "ذخیره" : "Save")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- MODAL: ADD HOMEWORK -->
+@if (showAddHomeworkModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(Preferences.IsRtl ? "افزودن تکلیف درسی" : "New Homework")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showAddHomeworkModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "درس مربوطه" : "Subject")</label>
+                        <div class="input-group">
+                            <select class="form-select" @bind="newHomeworkSubjectId">
+                                <option value="">-- @(Preferences.IsRtl ? "انتخاب درس" : "Select Subject") --</option>
+                                @foreach (var s in subjects)
+                                {
+                                    <option value="@s.Id">@s.Name</option>
+                                }
+                            </select>
+                            <input type="text" class="form-control" placeholder="@(Preferences.IsRtl ? "یا نام درس جدید" : "Or new subject name")" @bind="newSubjectName" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "عنوان تکلیف" : "Homework Title")</label>
+                        <input type="text" class="form-control" @bind="newHomeworkTitle" placeholder="@(Preferences.IsRtl ? "مثلاً حل تمرین‌های صفحه ۳۵" : "e.g. Solve exercises p.35")" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "مهلت انجام" : "Due Date")</label>
+                        <input type="date" class="form-control" @bind="newHomeworkDueDate" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "توضیحات تکمیلی" : "Details")</label>
+                        <textarea class="form-control" rows="2" @bind="newHomeworkDetails"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showAddHomeworkModal = false">@(Preferences.IsRtl ? "انصراف" : "Cancel")</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveHomework">@(Preferences.IsRtl ? "ذخیره" : "Save")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- MODAL: ADD EXAM -->
+@if (showAddExamModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(Preferences.IsRtl ? "افزودن امتحان" : "New Exam")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showAddExamModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "درس مربوطه" : "Subject")</label>
+                        <select class="form-select" @bind="newExamSubjectId">
+                            <option value="">-- @(Preferences.IsRtl ? "انتخاب درس" : "Select Subject") --</option>
+                            @foreach (var s in subjects)
+                            {
+                                <option value="@s.Id">@s.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "مباحث امتحان" : "Topics / Title")</label>
+                        <input type="text" class="form-control" @bind="newExamTopics" placeholder="@(Preferences.IsRtl ? "مثلاً میان‌ترم هندسه" : "e.g. Geometry Midterm")" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "تاریخ امتحان" : "Date")</label>
+                        <input type="date" class="form-control" @bind="newExamDate" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showAddExamModal = false">@(Preferences.IsRtl ? "انصراف" : "Cancel")</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveExam">@(Preferences.IsRtl ? "ذخیره" : "Save")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- MODAL: ADD SAVINGS GOAL -->
+@if (showAddGoalModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(Preferences.IsRtl ? "هدف جدید پس‌انداز" : "New Savings Goal")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showAddGoalModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "عنوان هدف" : "Goal Title")</label>
+                        <input type="text" class="form-control" @bind="newGoalTitle" placeholder="@(Preferences.IsRtl ? "مثلاً دوچرخه جدید" : "e.g. New Bicycle")" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "مبلغ مورد نیاز" : "Target Amount")</label>
+                        <input type="number" class="form-control" @bind="newGoalTargetAmount" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showAddGoalModal = false">@(Preferences.IsRtl ? "انصراف" : "Cancel")</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveSavingsGoal">@(Preferences.IsRtl ? "ذخیره" : "Save")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- MODAL: REQUEST WALLET ACTION -->
+@if (showRequestWalletModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(Preferences.IsRtl ? "درخواست برداشت یا خرید" : "Request Money / Purchase")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showRequestWalletModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "مبلغ درخواستی" : "Amount")</label>
+                        <input type="number" class="form-control" @bind="requestAmount" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">@(Preferences.IsRtl ? "دلیل / برای چه کاری؟" : "Reason / Purpose")</label>
+                        <input type="text" class="form-control" @bind="requestReason" placeholder="@(Preferences.IsRtl ? "مثلاً خرید کتاب یا خوراکی" : "e.g. Buying a book")" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showRequestWalletModal = false">@(Preferences.IsRtl ? "انصراف" : "Cancel")</button>
+                    <button type="button" class="btn btn-primary" @onclick="SubmitWalletRequest">@(Preferences.IsRtl ? "ارسال درخواست" : "Submit Request")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- MODAL: POINT HISTORY -->
+@if (showHistoryModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">⭐ @(Preferences.IsRtl ? "تاریخچه ستاره‌ها و امتیازات" : "Star & Point History")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showHistoryModal = false"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                        @if (!pointHistory.Any())
+                        {
+                            <div class="text-center py-4 text-muted">
+                                <small>@(Preferences.IsRtl ? "تاریخچه‌ای وجود ندارد" : "No point history found")</small>
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var h in pointHistory)
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-center py-3">
+                                    <div>
+                                        <h6 class="mb-1 fw-bold">@h.Reason</h6>
+                                        <small class="text-muted">@FormatDate(DateOnly.FromDateTime(h.At.UtcDateTime))</small>
+                                    </div>
+                                    <span class="fs-5 fw-bold @(h.Delta > 0 ? "text-success" : "text-danger")">
+                                        @(h.Delta > 0 ? "+" : "")@h.Delta ⭐
+                                    </span>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showHistoryModal = false">@(Preferences.IsRtl ? "بستن" : "Close")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private string activeTab = "routines";
+    private Guid selectedPersonId = Guid.Empty;
+
+    // Data lists
+    private List<PersonDto> people = new();
+    private List<RoutineTaskDto> routineTasks = new();
+    private List<RewardDto> rewards = new();
+    private List<SubjectDto> subjects = new();
+    private List<HomeworkItemDto> homeworkList = new();
+    private List<ExamEventDto> exams = new();
+    private List<SchoolScheduleDto> schoolSchedules = new();
+    private List<SavingsGoalDto> savingsGoals = new();
+    private List<PointLedgerDto> pointHistory = new();
+    private KidWalletDto? kidWallet;
+    private AllowanceRuleDto? allowanceRule;
+    private int pointBalance = 0;
+
+    // Approvals
+    private List<RoutineCompletionDto> pendingApprovals = new();
+    private List<RewardRedemptionDto> pendingRedemptions = new();
+    private List<WalletRequestDto> pendingWalletRequests = new();
+
+    // Modals state
+    private bool showAddRoutineModal = false;
+    private string newRoutineTitle = "";
+    private RoutineTimeSlot newRoutineSlot = RoutineTimeSlot.Morning;
+    private int newRoutinePoints = 10;
+    private bool newRoutineRequiresApproval = true;
+
+    private bool showAddRewardModal = false;
+    private string newRewardTitle = "";
+    private int newRewardCost = 20;
+
+    private bool showAddHomeworkModal = false;
+    private Guid? newHomeworkSubjectId;
+    private string newSubjectName = "";
+    private string newHomeworkTitle = "";
+    private DateTime newHomeworkDueDate = DateTime.Today.AddDays(1);
+    private string newHomeworkDetails = "";
+
+    private bool showAddExamModal = false;
+    private Guid? newExamSubjectId;
+    private string newExamTopics = "";
+    private DateTime newExamDate = DateTime.Today.AddDays(7);
+
+    private bool showAddGoalModal = false;
+    private string newGoalTitle = "";
+    private long newGoalTargetAmount = 100_000;
+
+    private bool showRequestWalletModal = false;
+    private long requestAmount = 50_000;
+    private string requestReason = "";
+
+    private bool showHistoryModal = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInitialData();
+    }
+
+    private async Task LoadInitialData()
+    {
+        isLoading = true;
+        try
+        {
+            people = await PersonService.GetPeopleAsync();
+            if (people.Any())
+            {
+                if (selectedPersonId == Guid.Empty || !people.Any(p => p.Id == selectedPersonId))
+                {
+                    selectedPersonId = people.First().Id;
+                }
+                await LoadPersonData(selectedPersonId);
+            }
+            await LoadPendingParentDesk();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnPersonChanged(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var pid))
+        {
+            selectedPersonId = pid;
+            await LoadPersonData(selectedPersonId);
+        }
+    }
+
+    private async Task LoadPersonData(Guid personId)
+    {
+        routineTasks = (await ChildrenService.GetRoutineTasksAsync(personId)).ToList();
+        rewards = (await ChildrenService.GetRewardsAsync()).ToList();
+        subjects = (await ChildrenService.GetSubjectsAsync(personId)).ToList();
+        homeworkList = (await ChildrenService.GetHomeworkAsync(personId)).ToList();
+        exams = (await ChildrenService.GetExamsAsync(personId)).ToList();
+        schoolSchedules = (await ChildrenService.GetSchoolScheduleAsync(personId)).ToList();
+        savingsGoals = (await ChildrenService.GetSavingsGoalsAsync(personId)).ToList();
+        pointBalance = await ChildrenService.GetPointBalanceAsync(personId);
+        kidWallet = await ChildrenService.GetKidWalletAsync(personId);
+        allowanceRule = await ChildrenService.GetAllowanceRuleAsync(personId);
+    }
+
+    private async Task LoadPendingParentDesk()
+    {
+        pendingApprovals = (await ChildrenService.GetPendingApprovalsAsync()).ToList();
+        pendingRedemptions = (await ChildrenService.GetPendingRedemptionsAsync()).ToList();
+        pendingWalletRequests = (await ChildrenService.GetWalletRequestsAsync(status: WalletRequestStatus.Pending)).ToList();
+    }
+
+    // Routine actions
+    private async Task CompleteRoutine(Guid taskId)
+    {
+        await ChildrenService.CompleteRoutineTaskAsync(taskId);
+        await LoadPersonData(selectedPersonId);
+        await LoadPendingParentDesk();
+    }
+
+    private async Task ApproveRoutine(Guid completionId)
+    {
+        var parentId = UserContext.UserId ?? Guid.Empty;
+        await ChildrenService.ApproveRoutineCompletionAsync(completionId, parentId);
+        await LoadPersonData(selectedPersonId);
+        await LoadPendingParentDesk();
+    }
+
+    private async Task RejectRoutine(Guid completionId)
+    {
+        var parentId = UserContext.UserId ?? Guid.Empty;
+        await ChildrenService.RejectRoutineCompletionAsync(completionId, parentId);
+        await LoadPendingParentDesk();
+    }
+
+    // Reward actions
+    private async Task RedeemReward(Guid rewardId)
+    {
+        await ChildrenService.RedeemRewardAsync(rewardId, selectedPersonId);
+        await LoadPersonData(selectedPersonId);
+        await LoadPendingParentDesk();
+    }
+
+    private async Task ApproveRedemption(Guid redemptionId)
+    {
+        var parentId = UserContext.UserId ?? Guid.Empty;
+        await ChildrenService.ApproveRewardRedemptionAsync(redemptionId, parentId);
+        await LoadPersonData(selectedPersonId);
+        await LoadPendingParentDesk();
+    }
+
+    private async Task RejectRedemption(Guid redemptionId)
+    {
+        var parentId = UserContext.UserId ?? Guid.Empty;
+        await ChildrenService.RejectRewardRedemptionAsync(redemptionId, parentId);
+        await LoadPendingParentDesk();
+    }
+
+    // Homework actions
+    private async Task UpdateHomework(Guid homeworkId, HomeworkStatus status, bool parentChecked = false)
+    {
+        await ChildrenService.UpdateHomeworkStatusAsync(homeworkId, status, parentChecked);
+        await LoadPersonData(selectedPersonId);
+    }
+
+    // Wallet actions
+    private async Task ApproveWalletRequest(Guid requestId)
+    {
+        var parentId = UserContext.UserId ?? Guid.Empty;
+        await ChildrenService.ApproveWalletRequestAsync(requestId, parentId);
+        await LoadPersonData(selectedPersonId);
+        await LoadPendingParentDesk();
+    }
+
+    private async Task RejectWalletRequest(Guid requestId)
+    {
+        var parentId = UserContext.UserId ?? Guid.Empty;
+        await ChildrenService.RejectWalletRequestAsync(requestId, parentId);
+        await LoadPendingParentDesk();
+    }
+
+    // Modals opener & savers
+    private void OpenAddRoutineModal() => showAddRoutineModal = true;
+    private async Task SaveRoutine()
+    {
+        if (string.IsNullOrWhiteSpace(newRoutineTitle)) return;
+        await ChildrenService.CreateRoutineTaskAsync(new CreateRoutineTaskRequest(
+            selectedPersonId, newRoutineTitle, Points: newRoutinePoints, TimeSlot: newRoutineSlot, RequiresApproval: newRoutineRequiresApproval));
+        showAddRoutineModal = false;
+        newRoutineTitle = "";
+        await LoadPersonData(selectedPersonId);
+    }
+
+    private void OpenAddRewardModal() => showAddRewardModal = true;
+    private async Task SaveReward()
+    {
+        if (string.IsNullOrWhiteSpace(newRewardTitle)) return;
+        await ChildrenService.CreateRewardAsync(new CreateRewardRequest(newRewardTitle, newRewardCost));
+        showAddRewardModal = false;
+        newRewardTitle = "";
+        await LoadPersonData(selectedPersonId);
+    }
+
+    private void OpenAddHomeworkModal() => showAddHomeworkModal = true;
+    private async Task SaveHomework()
+    {
+        if (string.IsNullOrWhiteSpace(newHomeworkTitle)) return;
+        Guid subId;
+        if (!string.IsNullOrWhiteSpace(newSubjectName))
+        {
+            var sub = await ChildrenService.CreateSubjectAsync(new CreateSubjectRequest(selectedPersonId, newSubjectName));
+            subId = sub.Id;
+            newSubjectName = "";
+        }
+        else if (newHomeworkSubjectId.HasValue && newHomeworkSubjectId.Value != Guid.Empty)
+        {
+            subId = newHomeworkSubjectId.Value;
+        }
+        else
+        {
+            var defaultSub = subjects.FirstOrDefault() ?? await ChildrenService.CreateSubjectAsync(new CreateSubjectRequest(selectedPersonId, "General"));
+            subId = defaultSub.Id;
+        }
+
+        await ChildrenService.CreateHomeworkAsync(new CreateHomeworkRequest(
+            selectedPersonId, subId, newHomeworkTitle, DateOnly.FromDateTime(newHomeworkDueDate), newHomeworkDetails));
+
+        showAddHomeworkModal = false;
+        newHomeworkTitle = "";
+        newHomeworkDetails = "";
+        await LoadPersonData(selectedPersonId);
+    }
+
+    private void OpenAddExamModal() => showAddExamModal = true;
+    private async Task SaveExam()
+    {
+        if (string.IsNullOrWhiteSpace(newExamTopics)) return;
+        Guid subId = (newExamSubjectId.HasValue && newExamSubjectId.Value != Guid.Empty)
+            ? newExamSubjectId.Value
+            : (subjects.FirstOrDefault()?.Id ?? (await ChildrenService.CreateSubjectAsync(new CreateSubjectRequest(selectedPersonId, "General"))).Id);
+
+        await ChildrenService.CreateExamAsync(new CreateExamEventRequest(
+            selectedPersonId, subId, DateOnly.FromDateTime(newExamDate), newExamTopics));
+
+        showAddExamModal = false;
+        newExamTopics = "";
+        await LoadPersonData(selectedPersonId);
+    }
+
+    private void OpenAddGoalModal() => showAddGoalModal = true;
+    private async Task SaveSavingsGoal()
+    {
+        if (string.IsNullOrWhiteSpace(newGoalTitle)) return;
+        await ChildrenService.CreateSavingsGoalAsync(new CreateSavingsGoalRequest(
+            selectedPersonId, newGoalTitle, newGoalTargetAmount));
+        showAddGoalModal = false;
+        newGoalTitle = "";
+        await LoadPersonData(selectedPersonId);
+    }
+
+    private void OpenRequestWalletModal() => showRequestWalletModal = true;
+    private async Task SubmitWalletRequest()
+    {
+        if (requestAmount <= 0) return;
+        await ChildrenService.RequestWalletActionAsync(
+            selectedPersonId, WalletRequestKind.Withdrawal, requestAmount, requestReason);
+        showRequestWalletModal = false;
+        requestReason = "";
+        await LoadPendingParentDesk();
+    }
+
+    private async Task OpenHistoryModal()
+    {
+        pointHistory = (await ChildrenService.GetPointHistoryAsync(selectedPersonId)).ToList();
+        showHistoryModal = true;
+    }
+
+    // Helpers
+    private string FormatMoney(long amount)
+    {
+        var raw = $"{amount:N0} IRR";
+        return CalendarService.ConvertDigits(raw, Preferences.DigitStyle);
+    }
+
+    private string FormatDate(DateOnly date)
+    {
+        return CalendarService.FormatDate(date, "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle);
+    }
+
+    private string FormatDate(DateTime dt)
+    {
+        return CalendarService.FormatDate(DateOnly.FromDateTime(dt), "yyyy/MM/dd", Preferences.Calendar, Preferences.DigitStyle);
+    }
+
+    private string GetTimeSlotTitle(RoutineTimeSlot slot) => slot switch
+    {
+        RoutineTimeSlot.Morning => Preferences.IsRtl ? "☀️ روتین‌های صبحگاهی" : "☀️ Morning Routines",
+        RoutineTimeSlot.Afternoon => Preferences.IsRtl ? "🌤️ روتین‌های بعدازظهر" : "🌤️ Afternoon Routines",
+        RoutineTimeSlot.Evening => Preferences.IsRtl ? "🌆 روتین‌های عصرگاهی" : "🌆 Evening Routines",
+        RoutineTimeSlot.Bedtime => Preferences.IsRtl ? "🌙 روتین‌های موقع خواب" : "🌙 Bedtime Routines",
+        _ => Preferences.IsRtl ? "⭐ هر زمان" : "⭐ Anytime"
+    };
+
+    private static string GetRoutineIcon(string icon) => icon switch
+    {
+        "brush" => "🪥",
+        "bed" => "🛏️",
+        "book" => "📖",
+        "clean" => "🧹",
+        "workout" => "🤸",
+        _ => "⭐"
+    };
+
+    private static string GetRewardIcon(string icon) => icon switch
+    {
+        "game" => "🎮",
+        "park" => "🎡",
+        "book" => "📚",
+        "icecream" => "🍦",
+        _ => "🎁"
+    };
+
+    private static string GetHomeworkStatusBadge(HomeworkStatus status) => status switch
+    {
+        HomeworkStatus.Assigned => "bg-warning text-dark",
+        HomeworkStatus.Completed => "bg-info text-white",
+        HomeworkStatus.Reviewed => "bg-success text-white",
+        _ => "bg-secondary"
+    };
+
+    private string GetHomeworkStatusText(HomeworkStatus status) => status switch
+    {
+        HomeworkStatus.Assigned => Preferences.IsRtl ? "واگذار شده" : "Assigned",
+        HomeworkStatus.Completed => Preferences.IsRtl ? "انجام شده" : "Completed",
+        HomeworkStatus.Reviewed => Preferences.IsRtl ? "بررسی شده" : "Reviewed",
+        _ => ""
+    };
+
+    private string GetDayName(DayOfWeek dow) => dow switch
+    {
+        DayOfWeek.Saturday => Preferences.IsRtl ? "شنبه" : "Sat",
+        DayOfWeek.Sunday => Preferences.IsRtl ? "یک‌شنبه" : "Sun",
+        DayOfWeek.Monday => Preferences.IsRtl ? "دوشنبه" : "Mon",
+        DayOfWeek.Tuesday => Preferences.IsRtl ? "سه‌شنبه" : "Tue",
+        DayOfWeek.Wednesday => Preferences.IsRtl ? "چهارشنبه" : "Wed",
+        DayOfWeek.Thursday => Preferences.IsRtl ? "پنج‌شنبه" : "Thu",
+        DayOfWeek.Friday => Preferences.IsRtl ? "جمعه" : "Fri",
+        _ => ""
+    };
+}

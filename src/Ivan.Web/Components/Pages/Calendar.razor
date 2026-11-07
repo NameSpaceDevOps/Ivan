@@ -181,6 +181,10 @@
         CalendarItemType.HealthDue => "💊",
         CalendarItemType.DocumentExpiry => "📄",
         CalendarItemType.WarrantyExpiry => "🛡️",
+        CalendarItemType.ChequeDue => "💳",
+        CalendarItemType.InstallmentDue => "🏦",
+        CalendarItemType.HomeworkDue => "📚",
+        CalendarItemType.ExamEvent => "📝",
         _ => "•"
     };
 
@@ -193,6 +197,10 @@
         CalendarItemType.HealthDue => Preferences.IsRtl ? "پزشکی" : "Health",
         CalendarItemType.DocumentExpiry => Preferences.IsRtl ? "انقضای مدرک" : "Doc Expiry",
         CalendarItemType.WarrantyExpiry => Preferences.IsRtl ? "انقضای گارانتی" : "Warranty",
+        CalendarItemType.ChequeDue => Preferences.IsRtl ? "چک" : "Cheque",
+        CalendarItemType.InstallmentDue => Preferences.IsRtl ? "قسط" : "Installment",
+        CalendarItemType.HomeworkDue => Preferences.IsRtl ? "تکلیف مدرسه" : "Homework",
+        CalendarItemType.ExamEvent => Preferences.IsRtl ? "امتحان" : "Exam",
         _ => ""
     };
 }

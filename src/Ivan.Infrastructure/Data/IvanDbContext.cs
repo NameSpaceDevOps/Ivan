@@ -70,6 +70,21 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
     public DbSet<Installment> Installments => Set<Installment>();
     public DbSet<BalanceCheck> BalanceChecks => Set<BalanceCheck>();
 
+    // Phase 5 Children, Wallet, Homework
+    public DbSet<RoutineTask> RoutineTasks => Set<RoutineTask>();
+    public DbSet<RoutineCompletion> RoutineCompletions => Set<RoutineCompletion>();
+    public DbSet<PointLedger> PointLedgers => Set<PointLedger>();
+    public DbSet<Reward> Rewards => Set<Reward>();
+    public DbSet<RewardRedemption> RewardRedemptions => Set<RewardRedemption>();
+    public DbSet<Subject> Subjects => Set<Subject>();
+    public DbSet<HomeworkItem> HomeworkItems => Set<HomeworkItem>();
+    public DbSet<ExamEvent> ExamEvents => Set<ExamEvent>();
+    public DbSet<SchoolSchedule> SchoolSchedules => Set<SchoolSchedule>();
+    public DbSet<WalletLink> WalletLinks => Set<WalletLink>();
+    public DbSet<AllowanceRule> AllowanceRules => Set<AllowanceRule>();
+    public DbSet<SavingsGoal> SavingsGoals => Set<SavingsGoal>();
+    public DbSet<WalletRequest> WalletRequests => Set<WalletRequest>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -120,6 +135,21 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
         builder.Entity<Loan>().ToTable("Loans");
         builder.Entity<Installment>().ToTable("Installments");
         builder.Entity<BalanceCheck>().ToTable("BalanceChecks");
+
+        // Phase 5 Tables
+        builder.Entity<RoutineTask>().ToTable("RoutineTasks");
+        builder.Entity<RoutineCompletion>().ToTable("RoutineCompletions");
+        builder.Entity<PointLedger>().ToTable("PointLedgers");
+        builder.Entity<Reward>().ToTable("Rewards");
+        builder.Entity<RewardRedemption>().ToTable("RewardRedemptions");
+        builder.Entity<Subject>().ToTable("Subjects");
+        builder.Entity<HomeworkItem>().ToTable("HomeworkItems");
+        builder.Entity<ExamEvent>().ToTable("ExamEvents");
+        builder.Entity<SchoolSchedule>().ToTable("SchoolSchedules");
+        builder.Entity<WalletLink>().ToTable("WalletLinks");
+        builder.Entity<AllowanceRule>().ToTable("AllowanceRules");
+        builder.Entity<SavingsGoal>().ToTable("SavingsGoals");
+        builder.Entity<WalletRequest>().ToTable("WalletRequests");
 
         // Relationships
         builder.Entity<Account>()
@@ -212,6 +242,21 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
         builder.Entity<Loan>().HasIndex(l => new { l.HouseholdId, l.StartDate });
         builder.Entity<Installment>().HasIndex(i => new { i.HouseholdId, i.LoanId, i.DueDate });
         builder.Entity<BalanceCheck>().HasIndex(bc => new { bc.HouseholdId, bc.AccountId, bc.Date });
+
+        // Phase 5 Indexes
+        builder.Entity<RoutineTask>().HasIndex(rt => new { rt.HouseholdId, rt.PersonId, rt.IsActive });
+        builder.Entity<RoutineCompletion>().HasIndex(rc => new { rc.HouseholdId, rc.RoutineTaskId, rc.Date });
+        builder.Entity<PointLedger>().HasIndex(pl => new { pl.HouseholdId, pl.PersonId, pl.At });
+        builder.Entity<Reward>().HasIndex(rw => new { rw.HouseholdId, rw.IsActive });
+        builder.Entity<RewardRedemption>().HasIndex(rr => new { rr.HouseholdId, rr.PersonId, rr.Status });
+        builder.Entity<Subject>().HasIndex(s => new { s.HouseholdId, s.PersonId });
+        builder.Entity<HomeworkItem>().HasIndex(hw => new { hw.HouseholdId, hw.PersonId, hw.DueOn });
+        builder.Entity<ExamEvent>().HasIndex(ee => new { ee.HouseholdId, ee.PersonId, ee.Date });
+        builder.Entity<SchoolSchedule>().HasIndex(ss => new { ss.HouseholdId, ss.PersonId, ss.DayOfWeek });
+        builder.Entity<WalletLink>().HasIndex(wl => new { wl.HouseholdId, wl.PersonId });
+        builder.Entity<AllowanceRule>().HasIndex(ar => new { ar.HouseholdId, ar.PersonId, ar.Active });
+        builder.Entity<SavingsGoal>().HasIndex(sg => new { sg.HouseholdId, sg.PersonId });
+        builder.Entity<WalletRequest>().HasIndex(wr => new { wr.HouseholdId, wr.PersonId, wr.Status });
 
         // AppUser & Household soft delete filters
         builder.Entity<AppUser>().HasQueryFilter(u => u.DeletedAt == null);
