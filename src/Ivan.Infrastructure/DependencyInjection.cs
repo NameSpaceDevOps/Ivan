@@ -71,6 +71,10 @@ public static class DependencyInjection
         // Phase 5 Children, Wallet, Homework
         services.AddScoped<IChildrenService, ChildrenService>();
 
+        // Phase 6 Library and Media
+        services.AddScoped<ILibraryService, LibraryService>();
+        services.AddScoped<IMediaService, MediaService>();
+
         return services;
     }
 }

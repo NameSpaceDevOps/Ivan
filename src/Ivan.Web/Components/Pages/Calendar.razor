@@ -185,6 +185,7 @@
         CalendarItemType.InstallmentDue => "🏦",
         CalendarItemType.HomeworkDue => "📚",
         CalendarItemType.ExamEvent => "📝",
+        CalendarItemType.BookLoanDue => "📖",
         _ => "•"
     };
 
@@ -201,6 +202,7 @@
         CalendarItemType.InstallmentDue => Preferences.IsRtl ? "قسط" : "Installment",
         CalendarItemType.HomeworkDue => Preferences.IsRtl ? "تکلیف مدرسه" : "Homework",
         CalendarItemType.ExamEvent => Preferences.IsRtl ? "امتحان" : "Exam",
+        CalendarItemType.BookLoanDue => Preferences.IsRtl ? "امانت کتاب" : "Book Loan",
         _ => ""
     };
 }

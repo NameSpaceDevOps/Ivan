@@ -67,5 +67,14 @@ public interface IIvanDbContext
     DbSet<SavingsGoal> SavingsGoals { get; }
     DbSet<WalletRequest> WalletRequests { get; }
 
+    // Phase 6 Library and Media
+    DbSet<Book> Books { get; }
+    DbSet<BookReadProgress> BookReadProgresses { get; }
+    DbSet<BookLoan> BookLoans { get; }
+    DbSet<MediaItem> MediaItems { get; }
+    DbSet<MediaPersonProgress> MediaPersonProgresses { get; }
+    DbSet<MediaEpisode> MediaEpisodes { get; }
+    DbSet<EpisodeWatchProgress> EpisodeWatchProgresses { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

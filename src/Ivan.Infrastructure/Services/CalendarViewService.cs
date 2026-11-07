@@ -276,6 +276,25 @@ public class CalendarViewService : ICalendarViewService
                 "var(--rz-danger)"));
         }
 
+        // 11. Book Loans Due
+        var loanQuery = _db.BookLoans
+            .Include(l => l.Book)
+            .Where(l => l.Status == LoanStatus.Active && l.DueAt >= startDateOnly && l.DueAt <= endDateOnly);
+
+        var loans = await loanQuery.ToListAsync(ct);
+        foreach (var ln in loans)
+        {
+            var due = new DateTimeOffset(ln.DueAt.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+            events.Add(new CalendarEventDto(
+                ln.Id,
+                CalendarItemType.BookLoanDue,
+                $"Book Return: '{ln.Book?.Title}' ({ln.BorrowerName})",
+                due,
+                ln.BorrowerContact,
+                "/library",
+                "var(--rz-warning)"));
+        }
+
         return events.OrderBy(e => e.DueAt).ToList();
     }
 }

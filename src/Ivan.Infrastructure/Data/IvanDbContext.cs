@@ -85,6 +85,15 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
     public DbSet<SavingsGoal> SavingsGoals => Set<SavingsGoal>();
     public DbSet<WalletRequest> WalletRequests => Set<WalletRequest>();
 
+    // Phase 6 Library and Media
+    public DbSet<Book> Books => Set<Book>();
+    public DbSet<BookReadProgress> BookReadProgresses => Set<BookReadProgress>();
+    public DbSet<BookLoan> BookLoans => Set<BookLoan>();
+    public DbSet<MediaItem> MediaItems => Set<MediaItem>();
+    public DbSet<MediaPersonProgress> MediaPersonProgresses => Set<MediaPersonProgress>();
+    public DbSet<MediaEpisode> MediaEpisodes => Set<MediaEpisode>();
+    public DbSet<EpisodeWatchProgress> EpisodeWatchProgresses => Set<EpisodeWatchProgress>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -150,6 +159,15 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
         builder.Entity<AllowanceRule>().ToTable("AllowanceRules");
         builder.Entity<SavingsGoal>().ToTable("SavingsGoals");
         builder.Entity<WalletRequest>().ToTable("WalletRequests");
+
+        // Phase 6 Tables
+        builder.Entity<Book>().ToTable("Books");
+        builder.Entity<BookReadProgress>().ToTable("BookReadProgresses");
+        builder.Entity<BookLoan>().ToTable("BookLoans");
+        builder.Entity<MediaItem>().ToTable("MediaItems");
+        builder.Entity<MediaPersonProgress>().ToTable("MediaPersonProgresses");
+        builder.Entity<MediaEpisode>().ToTable("MediaEpisodes");
+        builder.Entity<EpisodeWatchProgress>().ToTable("EpisodeWatchProgresses");
 
         // Relationships
         builder.Entity<Account>()
@@ -257,6 +275,16 @@ public class IvanDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid
         builder.Entity<AllowanceRule>().HasIndex(ar => new { ar.HouseholdId, ar.PersonId, ar.Active });
         builder.Entity<SavingsGoal>().HasIndex(sg => new { sg.HouseholdId, sg.PersonId });
         builder.Entity<WalletRequest>().HasIndex(wr => new { wr.HouseholdId, wr.PersonId, wr.Status });
+
+        // Phase 6 Indexes
+        builder.Entity<Book>().HasIndex(b => new { b.HouseholdId, b.Title });
+        builder.Entity<Book>().HasIndex(b => new { b.HouseholdId, b.Status });
+        builder.Entity<BookReadProgress>().HasIndex(br => new { br.HouseholdId, br.PersonId, br.Status });
+        builder.Entity<BookLoan>().HasIndex(bl => new { bl.HouseholdId, bl.Status, bl.DueAt });
+        builder.Entity<MediaItem>().HasIndex(m => new { m.HouseholdId, m.Type });
+        builder.Entity<MediaPersonProgress>().HasIndex(mp => new { mp.HouseholdId, mp.PersonId, mp.WatchStatus });
+        builder.Entity<MediaEpisode>().HasIndex(me => new { me.HouseholdId, me.MediaItemId, me.SeasonNumber, me.EpisodeNumber });
+        builder.Entity<EpisodeWatchProgress>().HasIndex(ew => new { ew.HouseholdId, ew.PersonId, ew.EpisodeId });
 
         // AppUser & Household soft delete filters
         builder.Entity<AppUser>().HasQueryFilter(u => u.DeletedAt == null);

@@ -12,7 +12,8 @@ public enum CalendarItemType
     ChequeDue = 8,
     InstallmentDue = 9,
     HomeworkDue = 10,
-    ExamEvent = 11
+    ExamEvent = 11,
+    BookLoanDue = 12
 }
 
 public record CalendarEventDto(
