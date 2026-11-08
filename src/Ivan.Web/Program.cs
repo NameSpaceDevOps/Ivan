@@ -47,13 +47,11 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 
 var app = builder.Build();
 
-// Ensure SQLite database and directory exist, and configure WAL mode (Section 3.2 & Story 8.2)
+// Ensure SQLite database and all tables exist, and configure WAL mode (Section 3.2 & Story 8.2)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<IvanDbContext>();
-    Directory.CreateDirectory("app_data");
-    db.Database.EnsureCreated();
-    db.Database.ExecuteSqlRaw("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA cache_size = -64000;");
+    DatabaseInitializer.InitializeDatabase(db);
 }
 
 // Security Headers Middleware (Section 3.10 & Story 8.1)

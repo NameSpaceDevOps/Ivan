@@ -287,4 +287,55 @@ public class Phase8HardeningIntegrationTests : IDisposable
             Assert.Empty(res);
         }
     }
+
+    [Fact]
+    public async Task DatabaseInitializer_EnsuresMissingTablesCreated_WhenDatabaseAlreadyExisted()
+    {
+        using var tempConnection = new SqliteConnection("DataSource=:memory:");
+        tempConnection.Open();
+
+        var tempOptions = new DbContextOptionsBuilder<IvanDbContext>()
+            .UseSqlite(tempConnection)
+            .Options;
+
+        // Simulate an old database that only has Households created
+        using (var cmd = tempConnection.CreateCommand())
+        {
+            cmd.CommandText = @"
+                CREATE TABLE IF NOT EXISTS ""Households"" (
+                    ""Id"" TEXT NOT NULL CONSTRAINT ""PK_Households"" PRIMARY KEY,
+                    ""Name"" TEXT NOT NULL,
+                    ""DefaultCulture"" TEXT NOT NULL,
+                    ""DefaultCalendar"" INTEGER NOT NULL,
+                    ""DefaultCurrency"" TEXT NOT NULL,
+                    ""TimeZone"" TEXT NOT NULL,
+                    ""CreatedAt"" TEXT NOT NULL,
+                    ""CreatedBy"" TEXT NULL,
+                    ""UpdatedAt"" TEXT NULL,
+                    ""UpdatedBy"" TEXT NULL,
+                    ""DeletedAt"" TEXT NULL,
+                    ""RowVersion"" BLOB NOT NULL
+                );";
+            cmd.ExecuteNonQuery();
+        }
+
+        // Run DatabaseInitializer
+        using (var db = new IvanDbContext(tempOptions, _userContext))
+        {
+            DatabaseInitializer.InitializeDatabase(db);
+        }
+
+        // Verify that People and other tables were created and can be queried without throwing SQLite Error 1
+        using (var verifyDb = new IvanDbContext(tempOptions, _userContext))
+        {
+            var people = await verifyDb.People.ToListAsync();
+            Assert.Empty(people); // Table exists!
+
+            var tasks = await verifyDb.TaskItems.ToListAsync();
+            Assert.Empty(tasks); // Table exists!
+
+            var assets = await verifyDb.Assets.ToListAsync();
+            Assert.Empty(assets); // Table exists!
+        }
+    }
 }
